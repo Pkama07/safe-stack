@@ -3,19 +3,20 @@ import { getPolicies, Violation } from './policies'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_CLOUD_KEY! })
 
-// Nano Banana Pro for image highlighting
-const HIGHLIGHT_PROMPT = `You are a safety inspector annotating a workplace image.
+// Nano Banana Pro for generating corrected scene
+const HIGHLIGHT_PROMPT = `You are a safety compliance visualization expert.
 
 Violation detected: {POLICY_NAME}
 Description: {DESCRIPTION}
 Reasoning: {REASONING}
 
-Edit this image to clearly highlight the safety hazard:
-- Draw a bright red circle or rectangular outline around the hazardous area
-- Add a small warning indicator or arrow pointing to the violation
-- Keep the rest of the image unchanged and recognizable
-- Make the highlight clearly visible but not obstructive
-- The highlight should make it immediately obvious where the safety issue is`
+Edit this image to show how the scene SHOULD look with proper safety compliance:
+- Remove or correct the safety hazard to show the compliant state
+- If items are misplaced, show them properly stored or positioned
+- If PPE is missing, show the person wearing appropriate safety equipment
+- If hazards are present, show them properly guarded, cleaned, or resolved
+- Keep the overall scene, setting, and context identical
+- The result should be a realistic visualization of a safe, compliant workplace`
 
 export async function highlightViolation(
   frameBase64: string,
