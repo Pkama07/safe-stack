@@ -9,14 +9,25 @@ Or: python server.py
 """
 
 import json
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import resend
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Configure Resend API key from environment variable
+resend.api_key = os.getenv("RESEND_API_KEY", "")
+
+print(resend.api_key)
 
 DATABASE_PATH = Path(__file__).parent.parent / "db" / "safestack.db"
 
@@ -62,6 +73,68 @@ def row_to_dict(row):
 def rows_to_list(rows):
     """Convert list of sqlite3.Row to list of dicts."""
     return [dict(row) for row in rows]
+
+
+# =============================================================================
+# Email Integration (Resend)
+# =============================================================================
+
+
+def send_alert_email(
+    recipient: str,
+    image_urls: list[str],
+    body: str,
+    subject: str = "Safety Alert Notification",
+) -> dict:
+    """
+    Send an alert email using Resend.
+
+    Args:
+        recipient: Email address of the recipient
+        image_urls: List of image URLs to include in the email
+        body: The main body text of the email
+        subject: Email subject line (default: "Safety Alert Notification")
+
+    Returns:
+        dict: Response from Resend API containing email ID and status
+    """
+    # Build HTML content with images
+    images_html = ""
+    if image_urls:
+        images_html = "<div style='margin-top: 20px;'><h3>Evidence Images:</h3>"
+        for i, url in enumerate(image_urls, 1):
+            images_html += f"""
+                <div style='margin: 10px 0;'>
+                    <p style='color: #666; font-size: 12px;'>Image {i}</p>
+                    <img src='{url}' alt='Evidence {i}' style='max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #ddd;' />
+                </div>
+            """
+        images_html += "</div>"
+
+    html_content = f"""
+    <div style='font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+        <div style='background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px;'>
+            <h1 style='color: #FF2626; margin: 0; font-size: 24px;'>⚠️ Safety Alert</h1>
+        </div>
+        <div style='background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;'>
+            <div style='color: #334155; line-height: 1.6; white-space: pre-wrap;'>{body}</div>
+            {images_html}
+        </div>
+        <div style='margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px;'>
+            <p>This is an automated alert from SafeStack Safety Monitoring System.</p>
+        </div>
+    </div>
+    """
+
+    params: resend.Emails.SendParams = {
+        "from": "SafeStack Alerts <alerts@resend.dev>",
+        "to": [recipient],
+        "subject": subject,
+        "html": html_content,
+    }
+
+    email = resend.Emails.send(params)
+    return email
 
 
 # =============================================================================
@@ -316,7 +389,12 @@ def create_alert(alert: AlertCreate):
 
     cursor = conn.execute(
         "INSERT INTO alerts (policy_id, image_urls, explanation, user_email) VALUES (?, ?, ?, ?)",
-        (alert.policy_id, json.dumps(alert.image_urls), alert.explanation, alert.user_email),
+        (
+            alert.policy_id,
+            json.dumps(alert.image_urls),
+            alert.explanation,
+            alert.user_email,
+        ),
     )
     conn.commit()
     alert_id = cursor.lastrowid
@@ -405,13 +483,22 @@ def health_check():
 # =============================================================================
 
 if __name__ == "__main__":
-    import uvicorn
+    # import uvicorn
 
-    print("=" * 60)
-    print("SafeStack API Server")
-    print("=" * 60)
-    print(f"\nDatabase: {DATABASE_PATH}")
-    print(f"Docs: http://localhost:8000/docs")
-    print(f"API:  http://localhost:8000\n")
+    # print("=" * 60)
+    # print("SafeStack API Server")
+    # print("=" * 60)
+    # print(f"\nDatabase: {DATABASE_PATH}")
+    # print(f"Docs: http://localhost:8000/docs")
+    # print(f"API:  http://localhost:8000\n")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    send_alert_email(
+        recipient="pradyun774@gmail.com",
+        image_urls=[
+            "https://cloudinary-marketing-res.cloudinary.com/images/w_1000,c_scale/v1679921049/Image_URL_header/Image_URL_header-png?_i=AA"
+        ],
+        body="There was a safety violation in the warehouse. Please review the images and take appropriate action.",
+        subject="There was a safety violation",
+    )
