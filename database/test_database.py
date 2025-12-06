@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-DATABASE_DIR = Path("../db")
+DATABASE_DIR = Path(__file__).parent.parent / "db"
 DATABASE_PATH = DATABASE_DIR / "safestack.db"
 
 

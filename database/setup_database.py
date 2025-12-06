@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import random
 
-DATABASE_DIR = Path("../db")
+DATABASE_DIR = Path(__file__).parent.parent / "db"
 DATABASE_PATH = DATABASE_DIR / "safestack.db"
 
 # ============================================================================

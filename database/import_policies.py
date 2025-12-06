@@ -14,7 +14,7 @@ import sqlite3
 import re
 from pathlib import Path
 
-DATABASE_PATH = Path("/usr/local/var/safestack.db")
+DATABASE_PATH = Path(__file__).parent.parent / "db" / "safestack.db"
 POLICIES_FILE = Path(__file__).parent.parent / "policies.txt"
 
 
