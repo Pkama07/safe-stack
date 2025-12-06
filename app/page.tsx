@@ -130,16 +130,14 @@ export default function Home() {
 
   // Run video chunk analysis - capture 5s per camera (sequential), then analyze, then repeat
   useEffect(() => {
-    // Initial delay to let videos load
+    // Start analysis immediately (small delay just to let component mount)
     const initialTimer = setTimeout(() => {
       analyzeVideoChunks()
-    }, 5000)
+    }, 1000)
 
-    // Run analysis loop - the interval should be longer than total processing time
-    // Sequential capture: ~5s per camera × 6 cameras = 30s
-    // Plus analysis time for each camera
-    // Using a long interval since isAnalyzingRef prevents overlapping runs
-    const interval = setInterval(analyzeVideoChunks, 60000) // 60 seconds between analysis cycles
+    // Run analysis loop every 2 seconds
+    // isAnalyzingRef prevents overlapping runs
+    const interval = setInterval(analyzeVideoChunks, 2000) // 2 seconds between analysis cycles
 
     return () => {
       clearTimeout(initialTimer)

@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "updated_at": "2025-12-06T22:04:43.466289Z",
+  "version": 1,
+  "updated_at": "2025-12-06T00:00:00Z",
   "policies": [
     {
       "id": "POOR_HOUSEKEEPING_AND_WALKING_WORKING_SURFACES",
@@ -12,7 +12,7 @@
       "id": "BLOCKED_EXITS_AND_EMERGENCY_EQUIPMENT",
       "title": "Blocked Exits and Emergency Equipment",
       "level": 1,
-      "description": "Storing materials in front of emergency exits, exit routes, electrical panels, fire extinguishers, eyewash stations, or other emergency equipment so that access is *immediately* restricted or visibility is *significantly* blocked. This includes situations where personnel would be unable to access the equipment or egress the exit within a reasonable timeframe (e.g., requiring more than a few seconds to move the obstruction). Minor or temporary obstructions that do not impede immediate access or significantly obscure visibility are excluded. For example, \"Pallets stored directly in front of and blocking the fire exit door\" *would* trigger this policy, while \"a small box temporarily placed a few feet away from an eyewash station, not obscuring it or impeding access\" would *not*."
+      "description": "Storing materials in front of emergency exits, exit routes, electrical panels, fire extinguishers, eyewash stations, or other emergency equipment so that access is restricted or visibility is blocked, e.g., \"Pallets stored in front of the fire exit door.\""
     },
     {
       "id": "UNSAFE_STORAGE_AND_PALLET_STACKING",
