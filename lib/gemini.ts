@@ -107,7 +107,7 @@ Return your analysis as a JSON array of violations:
 
 export async function analyzeVideo(videoBase64: string, mimeType: string): Promise<Violation[]> {
   const policies = getPolicies()
-  const prompt = ANALYSIS_PROMPT.replace('{POLICIES}', policies)
+  const prompt = ANALYSIS_PROMPT.replace('{POLICIES}', policies.policies.map(policy => `- ${policy.title} (${policy.description})`).join('\n'))
 
   try {
     const response = await ai.models.generateContent({
