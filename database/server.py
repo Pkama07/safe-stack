@@ -501,6 +501,148 @@ class PolicyAmendmentRequest(BaseModel):
     feedback: str  # User's explanation of why this was a false positive
 
 
+class FrameAnalysisRequest(BaseModel):
+    frame_base64: str  # Base64-encoded JPEG frame
+    camera_id: str
+    camera_name: Optional[str] = None
+
+
+# =============================================================================
+# Frame Analysis
+# =============================================================================
+
+FRAME_ANALYSIS_PROMPT = """You are an expert workplace safety inspector analyzing a frame from a live video feed.
+
+Given the following OSHA safety policies:
+---
+{POLICIES}
+---
+
+Analyze this frame and identify ANY safety violations visible. For each violation found, provide:
+- policy_name: The name of the violated policy (must match exactly one of the policy titles above)
+- severity: The severity level exactly as shown in brackets in the policy (must be one of: "Severity 1", "Severity 2", or "Severity 3")
+- description: What you observed in the frame
+- reasoning: Why this constitutes a violation of the specific policy
+
+IMPORTANT:
+- Only report violations you can clearly see in the frame
+- If no violations are found, return an empty array
+- Return ONLY valid JSON, no additional text
+
+Return your analysis as a JSON array:
+[
+  {
+    "policy_name": "Poor Housekeeping and Walking-Working Surfaces",
+    "severity": "Severity 1",
+    "description": "Tools and materials scattered across walkway",
+    "reasoning": "This creates slip, trip, and fall hazards as per OSHA guidelines"
+  }
+]"""
+
+
+def analyze_frame_with_gemini(frame_base64: str) -> list[dict]:
+    """
+    Analyze a single frame for safety violations using Gemini.
+    """
+    policies = get_policies()
+    prompt = FRAME_ANALYSIS_PROMPT.replace("{POLICIES}", policies)
+
+    try:
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "inline_data": {
+                                "mime_type": "image/jpeg",
+                                "data": frame_base64,
+                            }
+                        },
+                        {"text": prompt},
+                    ],
+                }
+            ],
+        )
+
+        text = response.text or ""
+        json_match = re.search(r"\[[\s\S]*\]", text)
+        if not json_match:
+            return []
+
+        violations = json.loads(json_match.group(0))
+        return violations
+    except Exception as e:
+        print(f"Error analyzing frame with Gemini: {e}")
+        return []
+
+
+@app.post("/analyze-frame")
+async def analyze_frame(request: FrameAnalysisRequest):
+    """
+    Analyze a single frame for safety violations.
+    Creates alerts for any violations found.
+    """
+    try:
+        violations = analyze_frame_with_gemini(request.frame_base64)
+
+        if not violations:
+            return {
+                "violations": [],
+                "alerts_created": 0,
+            }
+
+        conn = get_db()
+        created_alerts = []
+
+        for violation in violations:
+            policy_name = violation.get("policy_name", "")
+            policy_row = conn.execute(
+                "SELECT id, level FROM policies WHERE title = ?",
+                (policy_name,),
+            ).fetchone()
+
+            if not policy_row:
+                print(f"Policy not found: {policy_name}, skipping")
+                continue
+
+            policy_id = policy_row["id"]
+            explanation = violation.get("description", "")
+            severity = violation.get("severity", "")
+            reasoning = violation.get("reasoning", "")
+
+            # Create alert
+            cursor = conn.execute(
+                """
+                INSERT INTO alerts (
+                    policy_id, explanation, severity, reasoning
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (policy_id, explanation, severity, reasoning),
+            )
+            conn.commit()
+
+            created_alerts.append({
+                "alert_id": cursor.lastrowid,
+                "policy_name": policy_name,
+                "severity": severity,
+                "description": explanation,
+                "reasoning": reasoning,
+            })
+
+        conn.close()
+
+        return {
+            "violations": created_alerts,
+            "alerts_created": len(created_alerts),
+        }
+
+    except Exception as e:
+        print(f"Error in analyze_frame: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================================
 # User Endpoints
 # =============================================================================

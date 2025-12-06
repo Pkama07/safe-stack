@@ -1,46 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { analyzeVideo } from '@/lib/gemini'
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export const maxDuration = 300 // 5 minutes for video processing
 
+export interface AnalysisResult {
+  video_id: number
+  video_url: string
+  violations_found: number
+  alerts_created: number
+  alerts: Array<{
+    alert_id: number
+    policy_name: string
+    policy_level: number
+    severity: string
+    video_timestamp: string
+    description: string
+    reasoning: string
+    image_url: string
+  }>
+}
+
+/**
+ * POST /api/analyze-video
+ *
+ * Analyzes a video for safety violations using the backend Gemini integration.
+ *
+ * Request Body (JSON):
+ * - video_url (required): URL of the video to analyze
+ *
+ * Returns: AnalysisResult with violations found and alerts created
+ */
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const video = formData.get('video') as File
+    const body = await request.json()
+    const { video_url } = body
 
-    if (!video) {
+    if (!video_url) {
       return NextResponse.json(
-        { error: 'No video file provided' },
+        { error: 'video_url is required' },
         { status: 400 }
       )
     }
 
-    // Validate file type
-    const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
-    if (!validTypes.includes(video.type)) {
+    // Call backend analyze-video-full endpoint
+    const response = await fetch(`${BACKEND_URL}/analyze-video-full`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ video_url }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
       return NextResponse.json(
-        { error: 'Invalid video format. Supported: MP4, WebM, MOV, AVI' },
-        { status: 400 }
+        { error: error.detail || 'Failed to analyze video' },
+        { status: response.status }
       )
     }
 
-    // Convert to base64
-    const bytes = await video.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    const base64 = buffer.toString('base64')
-
-    // Map MIME types for Gemini
-    const mimeType = video.type === 'video/quicktime' ? 'video/mov' : video.type
-
-    // Analyze with Gemini 3 Pro
-    const violations = await analyzeVideo(base64, mimeType)
-
-    return NextResponse.json({ violations })
+    const result: AnalysisResult = await response.json()
+    return NextResponse.json(result)
   } catch (error) {
-    console.error('Error processing video:', error)
+    console.error('Error analyzing video:', error)
     return NextResponse.json(
-      { error: 'Failed to analyze video. Please try again.' },
-      { status: 500 }
+      { error: 'Failed to connect to backend server. Is it running?' },
+      { status: 503 }
     )
   }
 }

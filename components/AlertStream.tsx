@@ -14,7 +14,7 @@ export default function AlertStream({ alerts, onReviewClick }: AlertStreamProps)
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <h2 className="text-white font-semibold">Alert Stream</h2>
         <select className="bg-[#1a1f2e] border border-white/10 rounded px-3 py-1.5 text-sm text-stone-300 focus:outline-none focus:border-blue-500">
-          <option>All orts</option>
+          <option>All alerts</option>
           <option>High Risk</option>
           <option>Medium Risk</option>
           <option>Low Risk</option>
