@@ -22,7 +22,6 @@ const initialCameras: Camera[] = [
 export default function Home() {
   const [cameras, setCameras] = useState<Camera[]>(initialCameras)
   const [alerts, setAlerts] = useState<Alert[]>([])
-  const [error, setError] = useState<string | null>(null)
 
   const cameraGridRef = useRef<CameraGridRef>(null)
   const camerasRef = useRef<Camera[]>(initialCameras)
@@ -115,7 +114,8 @@ export default function Home() {
             setCameras((prev) =>
               prev.map((c) => (c.id === job.cameraId ? { ...c, status: 'alert' as const } : c))
             )
-            await fetchAlerts()
+            // Refresh alerts immediately without waiting for other uploads
+            fetchAlerts()
           } else {
             setCameras((prev) =>
               prev.map((c) => (c.id === job.cameraId ? { ...c, status: 'idle' as const } : c))
@@ -124,7 +124,6 @@ export default function Home() {
         })
         .catch((err) => {
           console.error(`[Camera ${job.cameraId}] upload error:`, err)
-          setError(err.message)
           setCameras((prev) =>
             prev.map((c) => (c.id === job.cameraId ? { ...c, status: 'idle' as const } : c))
           )
@@ -227,7 +226,7 @@ export default function Home() {
   // Fetch alerts on mount and periodically
   useEffect(() => {
     fetchAlerts()
-    const interval = setInterval(fetchAlerts, 5000)
+    const interval = setInterval(fetchAlerts, 2000)
     return () => clearInterval(interval)
   }, [fetchAlerts])
 
@@ -257,18 +256,6 @@ export default function Home() {
       <Header activeHazards={highRiskAlerts} compliancePercent={compliancePercent} />
 
       {/* Error Banner */}
-      {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
-          {error}
-          <button
-            onClick={() => setError(null)}
-            className="ml-4 text-red-300 hover:text-white"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
       <main className="p-6">
         <div className="grid grid-cols-12 gap-6 max-w-[1800px] mx-auto">
           {/* Left Column - Camera Grid (5 cols) */}
