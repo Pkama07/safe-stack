@@ -1079,7 +1079,7 @@ async def analyze_video_full(request: VideoAnalysisRequest):
                     # Upload amended image to Supabase
                     amended_filename = f"violation_{video_id}_{uuid.uuid4().hex}.png"
                     amended_image_url = upload_image_to_supabase(
-                        highlighted_image, amended_filename
+                        amended_image, amended_filename
                     )
 
                     # Update alert with amended image
