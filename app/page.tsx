@@ -8,6 +8,7 @@ import AlertStream from '@/components/AlertStream'
 import { Alert } from '@/components/AlertCard'
 import DailyAlerts from '@/components/DailyAlerts'
 import QuickLinks from '@/components/QuickLinks'
+import { mergeAlerts } from '@/lib/alerts'
 
 // Initial camera configurations with video stream URLs
 const initialCameras: Camera[] = [
@@ -114,7 +115,22 @@ export default function Home() {
             setCameras((prev) =>
               prev.map((c) => (c.id === job.cameraId ? { ...c, status: 'alert' as const } : c))
             )
-            // Refresh alerts immediately without waiting for other uploads
+            // Merge returned alerts immediately for faster UI updates
+            if (Array.isArray(result.alerts)) {
+              const mapped = result.alerts
+                .map(mapBackendAlertToUI)
+                .filter((a): a is Alert => Boolean(a))
+              if (mapped.length > 0) {
+                setAlerts((prev) => {
+                  const next = mergeAlerts(prev, mapped)
+                  next.forEach((alert) =>
+                    sessionStorage.setItem(`alert-${alert.id}`, JSON.stringify(alert))
+                  )
+                  return next
+                })
+              }
+            }
+            // Still poll frequently to reconcile with backend
             fetchAlerts()
           } else {
             setCameras((prev) =>
@@ -154,6 +170,27 @@ export default function Home() {
     },
     [drainQueue]
   )
+
+  const mapBackendAlertToUI = (incoming: any): Alert | null => {
+    if (!incoming) return null
+    const id = incoming.alert_id ?? incoming.id
+    if (!id) return null
+    return {
+      id,
+      policy_id: incoming.policy_id ?? -1,
+      policy_title: incoming.policy_name ?? incoming.policy_title ?? 'Unknown Policy',
+      policy_level: incoming.policy_level ?? 0,
+      severity: incoming.severity ?? '',
+      video_timestamp: incoming.video_timestamp ?? '',
+      explanation: incoming.description ?? incoming.explanation ?? '',
+      reasoning: incoming.reasoning ?? '',
+      image_urls: incoming.image_url ? [incoming.image_url] : incoming.image_urls ?? [],
+      amended_images: incoming.amended_image_url
+        ? [incoming.amended_image_url]
+        : incoming.amended_images ?? [],
+      timestamp: incoming.timestamp ?? new Date().toISOString(),
+    }
+  }
 
   // Analyze video chunks from all cameras in parallel
   const captureChunkCycle = useCallback(async () => {

@@ -1412,32 +1412,6 @@ async def analyze_video_full(
 
                 # Step 6: Generate amended image with violation fixed
                 amended_image_url = None
-                fix = violation.get("fix", "")
-                try:
-                    amended_image = generate_amended_image(
-                        frame_base64=frame_base64,
-                        policy_name=policy_name,
-                        description=explanation,
-                        reasoning=reasoning,
-                        fix=fix,
-                    )
-
-                    # Upload amended image to Supabase
-                    amended_filename = f"violation_{video_id}_{uuid.uuid4().hex}.png"
-                    amended_image_url = upload_image_to_supabase(
-                        amended_image, amended_filename
-                    )
-
-                    # Update alert with amended image
-                    conn.execute(
-                        "UPDATE alerts SET amended_images = ? WHERE id = ?",
-                        (json.dumps([amended_image_url]), alert_id),
-                    )
-                    conn.commit()
-                except Exception as amended_error:
-                    print(
-                        f"Error generating amended image for alert {alert_id}: {amended_error}"
-                    )
 
                 # Send email notification if recipient is configured (after amended image is ready)
                 if ALERT_EMAIL_RECIPIENT:
@@ -1456,12 +1430,7 @@ Chunk Index: {chunk_index}
 Camera: {camera_id}
                         """.strip()
 
-                        # Use amended image in email if available, otherwise use original
-                        email_image_url = (
-                            amended_image_url
-                            if amended_image_url
-                            else original_image_url
-                        )
+                        email_image_url = original_image_url
                         send_alert_email(
                             recipient=ALERT_EMAIL_RECIPIENT,
                             image_urls=[email_image_url],
