@@ -12,6 +12,7 @@ interface Alert {
   policy_title: string
   policy_level: number
   image_urls: string[]
+  amended_images: string[]
   explanation: string
   timestamp: string
   user_email: string | null
@@ -293,7 +294,7 @@ export default function AlertDetailPage() {
 
           {/* Evidence Images */}
           {alert.image_urls && alert.image_urls.length > 0 && (
-            <div className="bg-[#0f1419] rounded-lg border border-white/10 p-6">
+            <div className="bg-[#0f1419] rounded-lg border border-white/10 p-6 mb-6">
               <h2 className="flex items-center gap-3 text-white font-semibold mb-4">
                 <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
                   <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,6 +331,59 @@ export default function AlertDetailPage() {
                     </div>
                     <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-xs rounded">
                       {index + 1}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Amended Images (AI-Generated Fix) */}
+          {alert.amended_images && Array.isArray(alert.amended_images) && alert.amended_images.length > 0 && (
+            <div className="bg-[#0f1419] rounded-lg border border-white/10 p-6">
+              <h2 className="flex items-center gap-3 text-white font-semibold mb-4">
+                <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                AI-Generated Fix
+                <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
+                  After
+                </span>
+              </h2>
+
+              <p className="text-stone-400 text-sm mb-4 pl-11">
+                This AI-generated image shows how the scene should look after correcting the violation.
+              </p>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pl-11">
+                {alert.amended_images.map((url, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(url)}
+                    className="group relative aspect-video rounded-lg overflow-hidden bg-[#1a1f2e] border border-green-500/20 hover:border-green-500/40 transition-colors"
+                  >
+                    <img
+                      src={url}
+                      alt={`Corrected ${index + 1}`}
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23475569" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>'
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-green-500/20 backdrop-blur-sm rounded-lg">
+                        <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-green-500/70 backdrop-blur-sm text-white text-xs rounded flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Fixed
                     </div>
                   </button>
                 ))}

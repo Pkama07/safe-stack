@@ -12,6 +12,7 @@ export interface Alert {
   explanation: string
   reasoning: string
   image_urls: string[]
+  amended_images: string[]
   timestamp: string
 }
 
