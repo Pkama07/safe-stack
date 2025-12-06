@@ -82,7 +82,6 @@ export default function Home() {
       return
     }
 
-    // Open modal and show loading
     setSelectedViolation(violation)
     setShowHighlightModal(true)
     setIsHighlighting(true)
@@ -90,12 +89,10 @@ export default function Home() {
     setHighlightedFrame(null)
 
     try {
-      // Extract frame at violation timestamp
       const timestamp = parseTimestamp(violation.timestamp)
       const frameBase64 = await extractFrameAtTimestamp(videoElement, timestamp)
       setOriginalFrame(frameBase64)
 
-      // Call API to highlight violation
       const response = await fetch('/api/highlight-violation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,96 +147,121 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen p-6 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <main className="min-h-screen">
+      <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Safety Violation Analyzer</h1>
-          <p className="text-gray-400">
-            Upload a video or use your camera to detect OSHA safety violations
-            using Gemini 3 Pro
-          </p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 bg-amber-600/20 text-amber-400 text-xs font-medium rounded border border-amber-600/30">
+                Gemini 3 Pro
+              </span>
+            </div>
+            <h1 className="font-display text-2xl font-semibold text-white tracking-tight">
+              Safety Violation Analyzer
+            </h1>
+            <p className="text-stone-500 text-sm mt-0.5">
+              Upload footage or use live camera for real-time OSHA violation detection
+            </p>
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="flex gap-1 p-1 bg-[#141416] border border-white/10 rounded">
+            <button
+              onClick={() => {
+                setMode('upload')
+                setIsCameraActive(false)
+                setViolations([])
+                setStatus('')
+              }}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors ${
+                mode === 'upload'
+                  ? 'bg-amber-600 text-white'
+                  : 'text-stone-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Upload
+            </button>
+            <button
+              onClick={() => {
+                setMode('live')
+                setVideoUrl(null)
+                setViolations([])
+                setStatus('')
+              }}
+              className={`px-4 py-2 text-sm font-medium rounded transition-colors ${
+                mode === 'live'
+                  ? 'bg-amber-600 text-white'
+                  : 'text-stone-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Live Camera
+            </button>
+          </div>
         </div>
 
-        {/* Mode Toggle */}
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => {
-              setMode('upload')
-              setIsCameraActive(false)
-              setViolations([])
-              setStatus('')
-            }}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              mode === 'upload'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            Upload Video
-          </button>
-          <button
-            onClick={() => {
-              setMode('live')
-              setVideoUrl(null)
-              setViolations([])
-              setStatus('')
-            }}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              mode === 'live'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            Live Camera
-          </button>
-        </div>
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Left: Video/Camera - 3 cols */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Video Viewport */}
+            <div className="device-frame">
+              <div className="device-inner">
+                {mode === 'upload' ? (
+                  <>
+                    {!videoUrl && (
+                      <VideoUploader
+                        onVideoSelect={handleVideoSelect}
+                        isAnalyzing={isAnalyzing}
+                      />
+                    )}
+                    {videoUrl && (
+                      <VideoPlayer ref={videoPlayerRef} src={videoUrl} />
+                    )}
+                  </>
+                ) : (
+                  <LiveCamera
+                    isActive={isCameraActive}
+                    onViolationsDetected={handleLiveViolations}
+                    onStatusChange={setStatus}
+                  />
+                )}
+              </div>
+            </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column - Video/Camera */}
-          <div className="space-y-4">
-            {mode === 'upload' ? (
-              <>
-                <VideoUploader
-                  onVideoSelect={handleVideoSelect}
-                  isAnalyzing={isAnalyzing}
-                />
-                <VideoPlayer ref={videoPlayerRef} src={videoUrl} />
-              </>
-            ) : (
-              <>
-                <LiveCamera
-                  isActive={isCameraActive}
-                  onViolationsDetected={handleLiveViolations}
-                  onStatusChange={setStatus}
-                />
-                <button
-                  onClick={toggleCamera}
-                  className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                    isCameraActive
-                      ? 'bg-red-600 hover:bg-red-700'
-                      : 'bg-green-600 hover:bg-green-700'
-                  }`}
-                >
-                  {isCameraActive ? 'Stop Camera' : 'Start Camera'}
-                </button>
-              </>
+            {/* Controls / Status */}
+            {mode === 'live' && (
+              <button
+                onClick={toggleCamera}
+                className={`w-full py-3 rounded font-medium text-sm transition-colors ${
+                  isCameraActive
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-green-600 hover:bg-green-500 text-white'
+                }`}
+              >
+                {isCameraActive ? 'Stop Monitoring' : 'Start Monitoring'}
+              </button>
             )}
 
-            {/* Status */}
             {status && (
-              <div className="bg-gray-800 rounded-lg px-4 py-3 flex items-center gap-3">
-                {isAnalyzing && (
-                  <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+              <div className="flex items-center gap-3 px-4 py-3 bg-[#141416] border border-white/10 rounded">
+                {isAnalyzing ? (
+                  <div className="relative w-4 h-4">
+                    <div className="absolute inset-0 border-2 border-amber-500/30 rounded-full" />
+                    <div className="absolute inset-0 border-2 border-amber-500 rounded-full border-t-transparent animate-spin" />
+                  </div>
+                ) : (
+                  <div className={`w-2 h-2 rounded-sm ${
+                    violations.length > 0 ? 'bg-red-500' : 'bg-green-500'
+                  }`} />
                 )}
-                <span className="text-gray-300">{status}</span>
+                <span className="text-stone-400 text-sm">{status}</span>
               </div>
             )}
           </div>
 
-          {/* Right Column - Violations */}
-          <div>
+          {/* Right: Violations - 2 cols */}
+          <div className="lg:col-span-2">
             <ViolationsList
               violations={violations}
               onViolationClick={handleViolationClick}

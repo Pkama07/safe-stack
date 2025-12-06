@@ -160,6 +160,10 @@ class AlertCreate(BaseModel):
     user_email: Optional[str] = None
 
 
+class VideoCreate(BaseModel):
+    url: str
+
+
 # =============================================================================
 # User Endpoints
 # =============================================================================
@@ -428,6 +432,62 @@ def delete_alert(alert_id: int):
 
 
 # =============================================================================
+# Video Endpoints
+# =============================================================================
+
+
+@app.get("/videos")
+def list_videos(
+    limit: int = Query(100, description="Maximum number of results"),
+):
+    """Get all videos, ordered by timestamp descending."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM videos ORDER BY timestamp DESC LIMIT ?", (limit,)
+    ).fetchall()
+    conn.close()
+    return rows_to_list(rows)
+
+
+@app.get("/videos/{video_id}")
+def get_video(video_id: int):
+    """Get a video by ID."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return row_to_dict(row)
+
+
+@app.post("/videos", status_code=201)
+def create_video(video: VideoCreate):
+    """Create a new video record."""
+    conn = get_db()
+    cursor = conn.execute(
+        "INSERT INTO videos (url) VALUES (?)",
+        (video.url,),
+    )
+    conn.commit()
+    video_id = cursor.lastrowid
+    row = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    conn.close()
+    return row_to_dict(row)
+
+
+@app.delete("/videos/{video_id}", status_code=204)
+def delete_video(video_id: int):
+    """Delete a video by ID."""
+    conn = get_db()
+    cursor = conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
+    conn.commit()
+    if cursor.rowcount == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Video not found")
+    conn.close()
+
+
+# =============================================================================
 # Stats Endpoint
 # =============================================================================
 
@@ -440,6 +500,7 @@ def get_stats():
     user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     policy_count = conn.execute("SELECT COUNT(*) FROM policies").fetchone()[0]
     alert_count = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+    video_count = conn.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
 
     alerts_by_level = conn.execute(
         """
@@ -457,6 +518,7 @@ def get_stats():
         "users": user_count,
         "policies": policy_count,
         "alerts": alert_count,
+        "videos": video_count,
         "alerts_by_level": {row["level"]: row["count"] for row in alerts_by_level},
     }
 

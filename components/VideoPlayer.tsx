@@ -42,19 +42,28 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(
 
     if (!src) {
       return (
-        <div className="aspect-video bg-gray-800 rounded-xl flex items-center justify-center">
-          <p className="text-gray-500">No video selected</p>
+        <div className="aspect-video bg-[#0a0a0b] flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 mx-auto mb-3 flex items-center justify-center border border-white/10 rounded">
+              <svg className="w-6 h-6 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-stone-600 text-sm">No video selected</p>
+          </div>
         </div>
       )
     }
 
     return (
-      <video
-        ref={videoRef}
-        src={src}
-        controls
-        className="w-full aspect-video bg-black rounded-xl"
-      />
+      <div className="relative aspect-video bg-black">
+        <video
+          ref={videoRef}
+          src={src}
+          controls
+          className="w-full h-full object-contain"
+        />
+      </div>
     )
   }
 )

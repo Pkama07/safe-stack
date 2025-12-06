@@ -26,7 +26,7 @@ MIGRATIONS = [
         1,
         "Create users table",
         """
-        CREATE TABLE users (
+        CREATE TABLE IF NOT EXISTS users (
             email TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -37,20 +37,20 @@ MIGRATIONS = [
         2,
         "Create policies table",
         """
-        CREATE TABLE policies (
+        CREATE TABLE IF NOT EXISTS policies (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             level INTEGER NOT NULL,
             description TEXT
         );
-        CREATE INDEX idx_policies_level ON policies(level);
+        CREATE INDEX IF NOT EXISTS idx_policies_level ON policies(level);
     """,
     ),
     (
         3,
         "Create alerts table",
         """
-        CREATE TABLE alerts (
+        CREATE TABLE IF NOT EXISTS alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             policy_id INTEGER NOT NULL,
             image_urls TEXT,
@@ -58,8 +58,8 @@ MIGRATIONS = [
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
         );
-        CREATE INDEX idx_alerts_policy_id ON alerts(policy_id);
-        CREATE INDEX idx_alerts_timestamp ON alerts(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_alerts_policy_id ON alerts(policy_id);
+        CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);
     """,
     ),
     (
@@ -67,7 +67,19 @@ MIGRATIONS = [
         "Add user_email to alerts table",
         """
         ALTER TABLE alerts ADD COLUMN user_email TEXT REFERENCES users(email) ON DELETE SET NULL;
-        CREATE INDEX idx_alerts_user_email ON alerts(user_email);
+        CREATE INDEX IF NOT EXISTS idx_alerts_user_email ON alerts(user_email);
+    """,
+    ),
+    (
+        5,
+        "Create videos table",
+        """
+        CREATE TABLE IF NOT EXISTS videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_videos_timestamp ON videos(timestamp);
     """,
     ),
 ]

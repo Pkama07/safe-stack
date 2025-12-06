@@ -52,11 +52,17 @@ export default function VideoUploader({ onVideoSelect, isAnalyzing }: VideoUploa
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`
-        border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
-        ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'}
+        relative aspect-video cursor-pointer transition-all
+        ${isDragging ? 'bg-amber-500/5' : 'bg-[#0a0a0b]'}
         ${isAnalyzing ? 'opacity-50 pointer-events-none' : ''}
       `}
     >
+      {/* Border */}
+      <div className={`
+        absolute inset-4 border-2 border-dashed rounded transition-colors
+        ${isDragging ? 'border-amber-500' : 'border-white/10'}
+      `} />
+
       <input
         ref={fileInputRef}
         type="file"
@@ -65,37 +71,43 @@ export default function VideoUploader({ onVideoSelect, isAnalyzing }: VideoUploa
         className="hidden"
       />
 
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
-          <svg
-            className="w-8 h-8 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
+      <div className="relative z-10 h-full flex flex-col items-center justify-center p-8">
+        {/* Icon */}
+        <div className={`
+          w-12 h-12 mb-4 flex items-center justify-center rounded border transition-colors
+          ${isDragging ? 'border-amber-500 text-amber-500' : 'border-white/20 text-stone-500'}
+        `}>
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
         </div>
 
-        {selectedFile ? (
-          <div>
-            <p className="text-white font-medium">{selectedFile.name}</p>
-            <p className="text-gray-400 text-sm">
+        {selectedFile && !isAnalyzing ? (
+          <div className="text-center">
+            <p className="text-white font-mono text-sm mb-1 truncate max-w-[240px]">
+              {selectedFile.name}
+            </p>
+            <p className="text-stone-600 text-xs font-mono">
               {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
             </p>
           </div>
+        ) : isAnalyzing ? (
+          <div className="text-center">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="relative w-4 h-4">
+                <div className="absolute inset-0 border-2 border-amber-500/30 rounded-full" />
+                <div className="absolute inset-0 border-2 border-amber-500 rounded-full border-t-transparent animate-spin" />
+              </div>
+              <span className="text-stone-400 text-sm">Analyzing...</span>
+            </div>
+          </div>
         ) : (
-          <div>
-            <p className="text-white font-medium">
-              Drop your video here or click to browse
+          <div className="text-center">
+            <p className="text-stone-400 text-sm mb-1">
+              Drop video here or <span className="text-amber-500">browse</span>
             </p>
-            <p className="text-gray-400 text-sm mt-1">
-              Supports MP4, WebM, MOV (up to 2 hours)
+            <p className="text-stone-600 text-xs font-mono">
+              MP4, WebM, MOV
             </p>
           </div>
         )}

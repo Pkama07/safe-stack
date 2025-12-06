@@ -15,18 +15,11 @@ interface Alert {
   user_email: string | null
 }
 
-function getLevelColor(level: number): string {
-  if (level >= 7) return 'from-red-500 to-rose-600'
-  if (level >= 6) return 'from-orange-500 to-amber-600'
-  if (level >= 5) return 'from-yellow-500 to-amber-500'
-  return 'from-slate-500 to-slate-600'
-}
-
 function getLevelBadgeColor(level: number): string {
-  if (level >= 7) return 'bg-red-500/20 text-red-300 border-red-500/30'
-  if (level >= 6) return 'bg-orange-500/20 text-orange-300 border-orange-500/30'
-  if (level >= 5) return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-  return 'bg-slate-500/20 text-slate-300 border-slate-500/30'
+  if (level >= 7) return 'bg-red-600 text-white'
+  if (level >= 6) return 'bg-orange-600 text-white'
+  if (level >= 5) return 'bg-amber-600 text-white'
+  return 'bg-stone-600 text-white'
 }
 
 function getLevelLabel(level: number): string {
@@ -107,7 +100,6 @@ export default function AlertsPage() {
     e.preventDefault()
     setUserEmail(inputEmail)
     
-    // Update URL params
     const params = new URLSearchParams()
     if (inputEmail) {
       params.set('user_email', inputEmail)
@@ -122,235 +114,177 @@ export default function AlertsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Decorative background elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 right-1/3 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl" />
-      </div>
-
-      <div className="relative z-10 p-6 md:p-8 max-w-6xl mx-auto">
+    <main className="min-h-screen">
+      <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Header */}
-        <div className="mb-8">
-          <Link 
-            href="/" 
-            className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4 group"
-          >
-            <svg 
-              className="w-4 h-4 transition-transform group-hover:-translate-x-1" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Analyzer
-          </Link>
-          
-          <div className="flex items-center gap-4 mb-2">
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Safety Alerts</h1>
-              <p className="text-slate-400 mt-1">
-                Monitor and review safety violation alerts
-              </p>
-            </div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="font-display text-2xl font-semibold text-white tracking-tight">Safety Alerts</h1>
+            <p className="text-stone-500 text-sm mt-0.5">
+              Monitor and review safety violation alerts
+            </p>
           </div>
+          
+          {/* Stats */}
+          {!isLoading && !error && (
+            <div className="flex items-center gap-3 text-sm">
+              <div className="px-3 py-1.5 bg-[#141416] border border-white/10 rounded">
+                <span className="text-stone-500">Total:</span>
+                <span className="ml-1.5 text-white font-mono font-medium">{alerts.length}</span>
+              </div>
+              {alerts.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 bg-red-950/50 border border-red-900/50 rounded">
+                    <span className="text-red-400">Critical:</span>
+                    <span className="ml-1.5 text-red-300 font-mono font-medium">
+                      {alerts.filter(a => a.policy_level >= 7).length}
+                    </span>
+                  </div>
+                  <div className="px-3 py-1.5 bg-orange-950/50 border border-orange-900/50 rounded">
+                    <span className="text-orange-400">Serious:</span>
+                    <span className="ml-1.5 text-orange-300 font-mono font-medium">
+                      {alerts.filter(a => a.policy_level >= 6 && a.policy_level < 7).length}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Search/Filter Bar */}
-        <div className="mb-8">
-          <form onSubmit={handleSearch} className="flex gap-3">
-            <div className="relative flex-1 max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                </svg>
-              </div>
+        <div className="mb-6">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <div className="relative flex-1 max-w-sm">
               <input
                 type="email"
                 value={inputEmail}
                 onChange={(e) => setInputEmail(e.target.value)}
                 placeholder="Filter by user email..."
-                className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                className="w-full px-3 py-2 bg-[#141416] border border-white/10 rounded text-white text-sm placeholder-stone-500 focus:outline-none focus:border-amber-500/50 transition-colors font-mono"
               />
             </div>
-            <button
-              type="submit"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-colors shadow-lg shadow-blue-500/20"
-            >
+            <button type="submit" className="btn-primary btn-pill">
               Search
             </button>
             {userEmail && (
-              <button
-                type="button"
-                onClick={clearFilter}
-                className="px-4 py-3 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded-xl transition-colors border border-slate-600/50"
-              >
+              <button type="button" onClick={clearFilter} className="btn-secondary btn-pill">
                 Clear
               </button>
             )}
           </form>
           
           {userEmail && (
-            <div className="mt-3 flex items-center gap-2">
-              <span className="text-sm text-slate-400">Filtering by:</span>
-              <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm border border-blue-500/30">
+            <div className="mt-2 text-sm">
+              <span className="text-stone-500">Filtering:</span>
+              <span className="ml-2 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-xs font-mono border border-amber-500/20">
                 {userEmail}
               </span>
             </div>
           )}
         </div>
 
-        {/* Stats Bar */}
-        {!isLoading && !error && (
-          <div className="mb-6 flex items-center gap-4">
-            <div className="px-4 py-2 bg-slate-800/30 rounded-lg border border-slate-700/30">
-              <span className="text-slate-400 text-sm">Total Alerts:</span>
-              <span className="ml-2 text-white font-semibold">{alerts.length}</span>
-            </div>
-            {alerts.length > 0 && (
-              <>
-                <div className="px-4 py-2 bg-red-500/10 rounded-lg border border-red-500/20">
-                  <span className="text-red-400 text-sm">Critical:</span>
-                  <span className="ml-2 text-red-300 font-semibold">
-                    {alerts.filter(a => a.policy_level >= 7).length}
-                  </span>
-                </div>
-                <div className="px-4 py-2 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                  <span className="text-orange-400 text-sm">Serious:</span>
-                  <span className="ml-2 text-orange-300 font-semibold">
-                    {alerts.filter(a => a.policy_level >= 6 && a.policy_level < 7).length}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
         {/* Content */}
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="relative">
-              <div className="w-16 h-16 border-4 border-slate-700 rounded-full" />
-              <div className="absolute inset-0 w-16 h-16 border-4 border-blue-500 rounded-full border-t-transparent animate-spin" />
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="relative w-10 h-10 mb-4">
+              <div className="absolute inset-0 border-2 border-amber-500/20 rounded-full" />
+              <div className="absolute inset-0 border-2 border-amber-500 rounded-full border-t-transparent animate-spin" />
             </div>
-            <p className="mt-6 text-slate-400">Loading alerts...</p>
+            <p className="text-stone-500 text-sm">Loading alerts...</p>
           </div>
         ) : error ? (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-red-500/20 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-red-300 mb-2">Error Loading Alerts</h3>
-            <p className="text-red-400/80">{error}</p>
+          <div className="bg-red-950/30 border border-red-900/50 rounded p-6 text-center">
+            <p className="text-red-400 font-medium mb-2">Error Loading Alerts</p>
+            <p className="text-red-400/70 text-sm mb-4">{error}</p>
             <button 
               onClick={() => fetchAlerts(userEmail || undefined)}
-              className="mt-4 px-6 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors"
+              className="px-4 py-2 bg-red-900/50 hover:bg-red-900/70 text-red-300 rounded text-sm transition-colors"
             >
               Try Again
             </button>
           </div>
         ) : alerts.length === 0 ? (
-          <div className="bg-slate-800/30 border border-slate-700/30 rounded-2xl p-12 text-center">
-            <div className="w-20 h-20 mx-auto mb-6 bg-slate-700/30 rounded-full flex items-center justify-center">
-              <svg className="w-10 h-10 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-slate-300 mb-2">No Alerts Found</h3>
-            <p className="text-slate-500">
+          <div className="bg-[#141416] border border-white/10 rounded p-10 text-center">
+            <p className="text-stone-400 font-medium mb-1">No Alerts Found</p>
+            <p className="text-stone-600 text-sm">
               {userEmail 
                 ? `No alerts found for ${userEmail}`
                 : 'There are no alerts in the system yet'}
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {alerts.map((alert, index) => (
-              <Link
-                key={alert.id}
-                href={`/alerts/${alert.id}`}
-                className="block group"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div className="relative overflow-hidden bg-slate-800/40 backdrop-blur-sm border border-slate-700/40 rounded-2xl p-5 transition-all duration-300 hover:bg-slate-800/60 hover:border-slate-600/50 hover:shadow-xl hover:shadow-slate-900/50 hover:-translate-y-0.5">
-                  {/* Gradient accent line */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${getLevelColor(alert.policy_level)}`} />
-                  
-                  <div className="flex items-start gap-4 pl-3">
-                    {/* Alert icon */}
-                    <div className={`flex-shrink-0 p-2.5 rounded-xl bg-gradient-to-br ${getLevelColor(alert.policy_level)} shadow-lg`}>
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    </div>
-                    
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
-                          {alert.policy_title}
-                        </h3>
-                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${getLevelBadgeColor(alert.policy_level)}`}>
-                          L{alert.policy_level} · {getLevelLabel(alert.policy_level)}
-                        </span>
-                      </div>
-                      
-                      <p className="text-slate-400 text-sm line-clamp-2 mb-3">
-                        {alert.explanation}
-                      </p>
-                      
-                      <div className="flex items-center gap-4 text-xs text-slate-500">
-                        <span className="flex items-center gap-1.5">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {formatRelativeTime(alert.timestamp)}
-                        </span>
-                        {alert.user_email && (
-                          <span className="flex items-center gap-1.5">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            {alert.user_email}
-                          </span>
-                        )}
-                        {alert.image_urls && alert.image_urls.length > 0 && (
-                          <span className="flex items-center gap-1.5">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            {alert.image_urls.length} image{alert.image_urls.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        <span className="text-slate-600">
-                          #{alert.id}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Arrow indicator */}
-                    <div className="flex-shrink-0 text-slate-600 group-hover:text-blue-400 transition-colors">
-                      <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
+          /* Table View */
+          <div className="bg-[#141416] border border-white/10 rounded overflow-hidden">
+            {/* Table Header */}
+            <div className="grid grid-cols-[auto_1fr_100px_140px_80px_40px] gap-4 px-4 py-3 bg-[#0a0a0b] border-b border-white/10 text-xs font-medium text-stone-500 uppercase tracking-wider">
+              <div className="w-16">Level</div>
+              <div>Alert</div>
+              <div>User</div>
+              <div>Time</div>
+              <div>Evidence</div>
+              <div></div>
+            </div>
+            
+            {/* Table Body */}
+            <div className="divide-y divide-white/5">
+              {alerts.map((alert) => (
+                <Link
+                  key={alert.id}
+                  href={`/alerts/${alert.id}`}
+                  className="grid grid-cols-[auto_1fr_100px_140px_80px_40px] gap-4 px-4 py-3 items-center hover:bg-white/[0.02] transition-colors group"
+                >
+                  {/* Level Badge */}
+                  <div className="w-16">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${getLevelBadgeColor(alert.policy_level)}`}>
+                      L{alert.policy_level}
+                    </span>
                   </div>
-                </div>
-              </Link>
-            ))}
+                  
+                  {/* Alert Info */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-medium text-white group-hover:text-amber-400 transition-colors truncate">
+                        {alert.policy_title}
+                      </span>
+                      <span className="text-stone-600 text-xs font-mono">#{alert.id}</span>
+                    </div>
+                    <p className="text-stone-500 text-sm truncate">
+                      {alert.explanation}
+                    </p>
+                  </div>
+                  
+                  {/* User */}
+                  <div className="text-sm text-stone-500 truncate font-mono">
+                    {alert.user_email || '—'}
+                  </div>
+                  
+                  {/* Time */}
+                  <div className="text-sm text-stone-500 font-mono">
+                    {formatRelativeTime(alert.timestamp)}
+                  </div>
+                  
+                  {/* Evidence */}
+                  <div className="text-sm text-stone-500">
+                    {alert.image_urls && alert.image_urls.length > 0 ? (
+                      <span className="text-stone-400">{alert.image_urls.length} img</span>
+                    ) : (
+                      <span className="text-stone-600">—</span>
+                    )}
+                  </div>
+                  
+                  {/* Arrow */}
+                  <div className="text-stone-600 group-hover:text-amber-500 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         )}
       </div>
     </main>
   )
 }
-
