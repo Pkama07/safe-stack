@@ -82,6 +82,17 @@ MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_videos_timestamp ON videos(timestamp);
     """,
     ),
+    (
+        6,
+        "Add video analysis fields to alerts table",
+        """
+        ALTER TABLE alerts ADD COLUMN video_timestamp TEXT;
+        ALTER TABLE alerts ADD COLUMN severity TEXT;
+        ALTER TABLE alerts ADD COLUMN reasoning TEXT;
+        ALTER TABLE alerts ADD COLUMN video_id INTEGER REFERENCES videos(id) ON DELETE SET NULL;
+        CREATE INDEX IF NOT EXISTS idx_alerts_video_id ON alerts(video_id);
+    """,
+    ),
 ]
 
 

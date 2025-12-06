@@ -8,18 +8,27 @@ Run with: uvicorn server:app --reload
 Or: python server.py
 """
 
+import base64
 import json
 import os
+import re
 import sqlite3
+import tempfile
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import cv2
+import httpx
+import requests
 import resend
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from google import genai
 from pydantic import BaseModel
+from requests_aws4auth import AWS4Auth
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,7 +36,19 @@ load_dotenv()
 # Configure Resend API key from environment variable
 resend.api_key = os.getenv("RESEND_API_KEY", "")
 
-print(resend.api_key)
+# Configure Google Gemini API
+GOOGLE_CLOUD_KEY = os.getenv("GOOGLE_CLOUD_KEY", "")
+gemini_client = genai.Client(api_key=GOOGLE_CLOUD_KEY)
+
+# Configure Supabase S3 storage
+SUPABASE_S3_ACCESS_KEY = os.getenv("SUPABASE_S3_ACCESS_KEY", "")
+SUPABASE_S3_SECRET_KEY = os.getenv("SUPABASE_S3_SECRET_KEY", "")
+SUPABASE_S3_REGION = "us-west-2"
+SUPABASE_S3_ENDPOINT = "https://ksbfdhccpkfycuyngwhv.storage.supabase.co/storage/v1/s3"
+SUPABASE_S3_BUCKET = "violations"
+
+# Alert email recipient from environment variable
+ALERT_EMAIL_RECIPIENT = os.getenv("ALERT_EMAIL_RECIPIENT", "")
 
 DATABASE_PATH = Path(__file__).parent.parent / "db" / "safestack.db"
 
@@ -138,6 +159,316 @@ def send_alert_email(
 
 
 # =============================================================================
+# Gemini Video Analysis
+# =============================================================================
+
+
+def get_policies() -> str:
+    """Load policies from the database and format them for Gemini analysis."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT title, level, description FROM policies ORDER BY level, title"
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return ""
+
+    # Format policies in the same format as policies.txt
+    formatted_policies = []
+    for row in rows:
+        policy_text = f"[Severity {row['level']}] {row['title']}\n\nDescription: {row['description'] or ''}"
+        formatted_policies.append(policy_text)
+
+    return "\n\n".join(formatted_policies)
+
+
+ANALYSIS_PROMPT = """You are an expert workplace safety inspector analyzing video footage for OSHA safety violations.
+
+Given the following OSHA safety policies:
+---
+{POLICIES}
+---
+
+Analyze the video carefully and identify ANY safety violations you observe. For each violation found, provide:
+- timestamp: The time in the video where the violation occurs (MM:SS format)
+- policy_name: The name of the violated policy (e.g., "Poor Housekeeping and Walking-Working Surfaces")
+- severity: The severity level exactly as shown in brackets in the policy (must be one of: "Severity 1", "Severity 2", or "Severity 3")
+- description: What you observed in the video
+- reasoning: Why this constitutes a violation of the specific policy
+
+IMPORTANT:
+- Be thorough and identify ALL potential violations
+- Only report violations you can clearly see in the video
+- If the SAME violation type occurs multiple times in the video, report ONLY the MOST SIGNIFICANT instance (the one that is most clearly visible, most severe, or poses the greatest risk) - do NOT report the first occurrence, report the WORST/MOST SIGNIFICANT occurrence
+- Each unique violation type should appear only once in your results, at its most significant timestamp
+- The timestamp you return should be the one with where the violation is most clearly visible. It shouldn't be the start of the violation, but when it is the MOST apparent (1-2 seconds after the start of the violation)
+- If no violations are found, return an empty array
+- Return ONLY valid JSON, no additional text
+
+Return your analysis as a JSON array of violations:
+[
+  {
+    "timestamp": "00:15",
+    "policy_name": "Poor Housekeeping and Walking-Working Surfaces",
+    "severity": "Severity 1",
+    "description": "Tools and materials scattered across walkway",
+    "reasoning": "This creates slip, trip, and fall hazards as per OSHA guidelines"
+  }
+]"""
+
+
+def analyze_video_with_gemini(video_base64: str, mime_type: str) -> list[dict]:
+    """
+    Analyze a video for safety violations using Gemini.
+
+    Args:
+        video_base64: Base64-encoded video data
+        mime_type: MIME type of the video (e.g., 'video/mp4')
+
+    Returns:
+        List of violation dictionaries with timestamp, policy_name, severity, description, reasoning
+    """
+    policies = get_policies()
+    prompt = ANALYSIS_PROMPT.replace("{POLICIES}", policies)
+
+    try:
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": video_base64,
+                            }
+                        },
+                        {"text": prompt},
+                    ],
+                }
+            ],
+        )
+
+        text = response.text or ""
+
+        # Extract JSON from the response
+        json_match = re.search(r"\[[\s\S]*\]", text)
+        if not json_match:
+            print(f"No JSON array found in response: {text}")
+            return []
+
+        violations = json.loads(json_match.group(0))
+        return violations
+    except Exception as e:
+        print(f"Error analyzing video with Gemini: {e}")
+        raise
+
+
+# =============================================================================
+# Nano Banana Image Highlighting
+# =============================================================================
+
+AMEND_POLICY_PROMPT = """You are an expert safety policy writer reviewing a policy that generated a false positive detection.
+
+Current Policy:
+- Title: {POLICY_TITLE}
+- Severity Level: {POLICY_LEVEL}
+- Description: {POLICY_DESCRIPTION}
+
+User Feedback (explaining why this was a false positive):
+{USER_FEEDBACK}
+
+Based on the user's feedback, write an improved policy description that:
+1. Maintains the original intent and safety requirements of the policy
+2. Adds clarifying language to prevent this type of false positive in the future
+3. Is clear, specific, and actionable for safety inspectors
+4. Does not weaken the safety standards - only adds precision to avoid incorrect detections
+
+Return ONLY the updated policy description text, without any additional commentary or formatting."""
+
+
+HIGHLIGHT_PROMPT = """You are a safety inspector annotating a workplace image.
+
+Violation detected: {POLICY_NAME}
+Description: {DESCRIPTION}
+Reasoning: {REASONING}
+
+Edit this image to clearly highlight the safety hazard:
+- Draw a bright red circle or rectangular outline around the hazardous area
+- Add a small warning indicator or arrow pointing to the violation
+- Keep the rest of the image unchanged and recognizable
+- Make the highlight clearly visible but not obstructive
+- The highlight should make it immediately obvious where the safety issue is"""
+
+
+def highlight_violation_with_nano_banana(
+    frame_base64: str,
+    policy_name: str,
+    description: str,
+    reasoning: str,
+) -> str:
+    """
+    Use Gemini Nano Banana to highlight a violation in an image.
+
+    Args:
+        frame_base64: Base64-encoded JPEG frame
+        policy_name: Name of the violated policy
+        description: Description of the violation
+        reasoning: Reasoning for the violation
+
+    Returns:
+        Base64-encoded highlighted image
+    """
+    prompt = (
+        HIGHLIGHT_PROMPT.replace("{POLICY_NAME}", policy_name)
+        .replace("{DESCRIPTION}", description)
+        .replace("{REASONING}", reasoning)
+    )
+
+    try:
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash-preview-image-generation",
+            contents=[
+                {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "inline_data": {
+                                "mime_type": "image/jpeg",
+                                "data": frame_base64,
+                            }
+                        },
+                        {"text": prompt},
+                    ],
+                }
+            ],
+            config={
+                "response_modalities": ["IMAGE"],
+            },
+        )
+
+        # Extract the generated image from response
+        if response.candidates:
+            for part in response.candidates[0].content.parts:
+                if (
+                    hasattr(part, "inline_data")
+                    and part.inline_data
+                    and part.inline_data.data
+                ):
+                    return part.inline_data.data
+
+        raise Exception("No image returned from Nano Banana")
+    except Exception as e:
+        print(f"Error highlighting violation: {e}")
+        raise
+
+
+# =============================================================================
+# Video Frame Extraction
+# =============================================================================
+
+
+def parse_timestamp(timestamp: str) -> float:
+    """
+    Parse a timestamp string (MM:SS or HH:MM:SS) to seconds.
+
+    Args:
+        timestamp: Timestamp string like "00:15" or "01:30:45"
+
+    Returns:
+        Time in seconds as float
+    """
+    parts = timestamp.split(":")
+    parts = [float(p) for p in parts]
+
+    if len(parts) == 2:
+        return parts[0] * 60 + parts[1]
+    elif len(parts) == 3:
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    return 0.0
+
+
+def extract_frame_at_timestamp(video_path: str, timestamp_seconds: float) -> str:
+    """
+    Extract a frame from a video at the specified timestamp.
+
+    Args:
+        video_path: Path to the video file
+        timestamp_seconds: Time in seconds to extract frame from
+
+    Returns:
+        Base64-encoded JPEG image
+    """
+    cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        raise Exception(f"Could not open video: {video_path}")
+
+    # Set position to the specified timestamp (in milliseconds)
+    cap.set(cv2.CAP_PROP_POS_MSEC, timestamp_seconds * 1000)
+
+    ret, frame = cap.read()
+    cap.release()
+
+    if not ret:
+        raise Exception(f"Could not read frame at timestamp {timestamp_seconds}s")
+
+    # Encode frame as JPEG
+    _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    frame_base64 = base64.b64encode(buffer).decode("utf-8")
+
+    return frame_base64
+
+
+# =============================================================================
+# Supabase S3 Storage Upload
+# =============================================================================
+
+
+def upload_image_to_supabase(image_base64: str, filename: str) -> str:
+    """
+    Upload an image to Supabase S3 storage.
+
+    Args:
+        image_base64: Base64-encoded image data
+        filename: Name for the file in storage
+
+    Returns:
+        Public URL of the uploaded image
+    """
+    auth = AWS4Auth(
+        SUPABASE_S3_ACCESS_KEY,
+        SUPABASE_S3_SECRET_KEY,
+        SUPABASE_S3_REGION,
+        "s3",
+    )
+
+    # Decode base64 to bytes
+    image_bytes = base64.b64decode(image_base64)
+
+    # Upload to Supabase S3
+    upload_url = f"{SUPABASE_S3_ENDPOINT}/{SUPABASE_S3_BUCKET}/{filename}"
+
+    response = requests.put(
+        upload_url,
+        data=image_bytes,
+        headers={"Content-Type": "image/png"},
+        auth=auth,
+    )
+
+    if response.status_code not in (200, 201):
+        raise Exception(
+            f"Failed to upload image: {response.status_code} {response.text}"
+        )
+
+    # Return the public URL
+    public_url = f"https://ksbfdhccpkfycuyngwhv.supabase.co/storage/v1/object/public/{SUPABASE_S3_BUCKET}/{filename}"
+    return public_url
+
+
+# =============================================================================
 # Pydantic Models
 # =============================================================================
 
@@ -162,6 +493,15 @@ class AlertCreate(BaseModel):
 
 class VideoCreate(BaseModel):
     url: str
+
+
+class VideoAnalysisRequest(BaseModel):
+    video_url: str  # URL to download video from
+
+
+class PolicyAmendmentRequest(BaseModel):
+    alert_id: int  # ID of the false positive alert
+    feedback: str  # User's explanation of why this was a false positive
 
 
 # =============================================================================
@@ -282,6 +622,92 @@ def delete_policy(policy_id: int):
         conn.close()
         raise HTTPException(status_code=404, detail="Policy not found")
     conn.close()
+
+
+@app.post("/amend-policy")
+def amend_policy(request: PolicyAmendmentRequest):
+    """
+    Amend a policy based on user feedback about a false positive alert.
+
+    This endpoint:
+    1. Fetches the alert by ID
+    2. Gets the associated policy
+    3. Uses Gemini to generate an improved policy description
+    4. Updates the policy in the database
+    """
+    conn = get_db()
+
+    # Fetch the alert
+    alert_row = conn.execute(
+        "SELECT * FROM alerts WHERE id = ?", (request.alert_id,)
+    ).fetchone()
+    if not alert_row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    alert = dict(alert_row)
+    policy_id = alert["policy_id"]
+
+    # Fetch the policy
+    policy_row = conn.execute(
+        "SELECT * FROM policies WHERE id = ?", (policy_id,)
+    ).fetchone()
+    if not policy_row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Policy not found")
+
+    policy = dict(policy_row)
+
+    # Build the prompt for Gemini
+    prompt = (
+        AMEND_POLICY_PROMPT.replace("{POLICY_TITLE}", policy["title"])
+        .replace("{POLICY_LEVEL}", str(policy["level"]))
+        .replace("{POLICY_DESCRIPTION}", policy["description"] or "")
+        .replace("{USER_FEEDBACK}", request.feedback)
+    )
+
+    try:
+        # Call Gemini to generate amended policy description
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ],
+        )
+
+        amended_description = response.text or ""
+        amended_description = amended_description.strip()
+
+        if not amended_description:
+            conn.close()
+            raise HTTPException(
+                status_code=500, detail="Failed to generate amended policy description"
+            )
+
+        # Update the policy in the database
+        conn.execute(
+            "UPDATE policies SET description = ? WHERE id = ?",
+            (amended_description, policy_id),
+        )
+        conn.commit()
+
+        # Fetch and return the updated policy
+        updated_row = conn.execute(
+            "SELECT * FROM policies WHERE id = ?", (policy_id,)
+        ).fetchone()
+        conn.close()
+
+        return row_to_dict(updated_row)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.close()
+        print(f"Error amending policy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =============================================================================
@@ -485,6 +911,218 @@ def delete_video(video_id: int):
         conn.close()
         raise HTTPException(status_code=404, detail="Video not found")
     conn.close()
+
+
+# =============================================================================
+# Video Analysis Endpoint
+# =============================================================================
+
+
+@app.post("/analyze-video-full")
+async def analyze_video_full(request: VideoAnalysisRequest):
+    """
+    Analyze a video for safety violations and create alerts.
+
+    This endpoint:
+    1. Downloads the video from the provided URL
+    2. Creates a video record in the database
+    3. Analyzes the video with Gemini for safety violations
+    4. For each violation:
+       - Extracts the frame at the violation timestamp
+       - Highlights the violation using Nano Banana
+       - Uploads the highlighted image to Supabase storage
+       - Creates an alert record in the database
+       - Sends an email notification
+    5. Returns a summary of violations found and alerts created
+    """
+    temp_video_path = None
+
+    try:
+        # Step 1: Download video to temp file
+        async with httpx.AsyncClient() as client:
+            response = await client.get(request.video_url, follow_redirects=True)
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to download video: {response.status_code}",
+                )
+
+            # Determine file extension from content type or URL
+            content_type = response.headers.get("content-type", "video/mp4")
+            ext = ".mp4"
+            if "webm" in content_type:
+                ext = ".webm"
+            elif "quicktime" in content_type or "mov" in content_type:
+                ext = ".mov"
+            elif "avi" in content_type:
+                ext = ".avi"
+
+            # Save to temp file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+            temp_file.write(response.content)
+            temp_file.close()
+            temp_video_path = temp_file.name
+
+        # Step 2: Create video record in database
+        conn = get_db()
+        cursor = conn.execute(
+            "INSERT INTO videos (url) VALUES (?)",
+            (request.video_url,),
+        )
+        conn.commit()
+        video_id = cursor.lastrowid
+
+        # Step 3: Analyze video with Gemini
+        video_base64 = base64.b64encode(Path(temp_video_path).read_bytes()).decode(
+            "utf-8"
+        )
+
+        # Map extension to MIME type
+        mime_type_map = {
+            ".mp4": "video/mp4",
+            ".webm": "video/webm",
+            ".mov": "video/mov",
+            ".avi": "video/x-msvideo",
+        }
+        mime_type = mime_type_map.get(ext, "video/mp4")
+
+        violations = analyze_video_with_gemini(video_base64, mime_type)
+
+        if not violations:
+            conn.close()
+            return {
+                "video_id": video_id,
+                "video_url": request.video_url,
+                "violations_found": 0,
+                "alerts_created": 0,
+                "alerts": [],
+            }
+
+        # Step 4: Process each violation
+        created_alerts = []
+
+        for violation in violations:
+            try:
+                # Extract frame at violation timestamp
+                timestamp_seconds = parse_timestamp(violation.get("timestamp", "00:00"))
+                frame_base64 = extract_frame_at_timestamp(
+                    temp_video_path, timestamp_seconds
+                )
+
+                # Highlight violation with Nano Banana
+                highlighted_image = highlight_violation_with_nano_banana(
+                    frame_base64=frame_base64,
+                    policy_name=violation.get("policy_name", "Unknown"),
+                    description=violation.get("description", ""),
+                    reasoning=violation.get("reasoning", ""),
+                )
+
+                # Upload highlighted image to Supabase
+                filename = f"violation_{video_id}_{uuid.uuid4().hex}.png"
+                image_url = upload_image_to_supabase(highlighted_image, filename)
+
+                # Find matching policy in database (strict match on title)
+                policy_name = violation.get("policy_name", "")
+                policy_row = conn.execute(
+                    "SELECT id, level FROM policies WHERE title = ?",
+                    (policy_name,),
+                ).fetchone()
+
+                if not policy_row:
+                    print(f"Policy not found: {policy_name}, skipping violation")
+                    continue
+
+                policy_id = policy_row["id"]
+                policy_level = policy_row["level"]
+
+                # Create alert record with all fields
+                explanation = violation.get("description", "")
+                severity = violation.get("severity", "")
+                reasoning = violation.get("reasoning", "")
+                video_timestamp = violation.get("timestamp", "")
+
+                cursor = conn.execute(
+                    """
+                    INSERT INTO alerts (
+                        policy_id, image_urls, explanation, video_timestamp, 
+                        severity, reasoning, video_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        policy_id,
+                        json.dumps([image_url]),
+                        explanation,
+                        video_timestamp,
+                        severity,
+                        reasoning,
+                        video_id,
+                    ),
+                )
+                conn.commit()
+                alert_id = cursor.lastrowid
+
+                # Send email notification if recipient is configured
+                if ALERT_EMAIL_RECIPIENT:
+                    try:
+                        email_body = f"""
+Policy Violated: {policy_name}
+Severity: {severity}
+Timestamp in Video: {video_timestamp}
+
+Description: {explanation}
+
+Reasoning: {reasoning}
+
+Video URL: {request.video_url}
+                        """.strip()
+
+                        send_alert_email(
+                            recipient=ALERT_EMAIL_RECIPIENT,
+                            image_urls=[image_url],
+                            body=email_body,
+                            subject=f"Safety Violation Detected: {policy_name}",
+                        )
+                    except Exception as email_error:
+                        print(
+                            f"Failed to send email for alert {alert_id}: {email_error}"
+                        )
+
+                created_alerts.append(
+                    {
+                        "alert_id": alert_id,
+                        "policy_name": policy_name,
+                        "policy_level": policy_level,
+                        "severity": severity,
+                        "video_timestamp": video_timestamp,
+                        "description": explanation,
+                        "reasoning": reasoning,
+                        "image_url": image_url,
+                    }
+                )
+
+            except Exception as violation_error:
+                print(f"Error processing violation: {violation_error}")
+                continue
+
+        conn.close()
+
+        return {
+            "video_id": video_id,
+            "video_url": request.video_url,
+            "violations_found": len(violations),
+            "alerts_created": len(created_alerts),
+            "alerts": created_alerts,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in analyze_video_full: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Clean up temp file
+        if temp_video_path and os.path.exists(temp_video_path):
+            os.unlink(temp_video_path)
 
 
 # =============================================================================
