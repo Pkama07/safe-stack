@@ -26,6 +26,8 @@ export default function Home() {
 
   const cameraGridRef = useRef<CameraGridRef>(null)
   const isAnalyzingRef = useRef(false)
+  const analyzeVideoChunksRef = useRef<() => Promise<void>>(async () => {})
+  const timeoutScheduledRef = useRef(false)
 
   // Duration for video chunk capture (5 seconds)
   const CHUNK_DURATION_MS = 5000
@@ -135,39 +137,57 @@ export default function Home() {
     }
   }, [cameras, fetchAlerts])
 
-  // Run video chunk analysis - only on true page refresh, not on navigation back
+  // Keep ref updated with latest analyzeVideoChunks function
   useEffect(() => {
+    analyzeVideoChunksRef.current = analyzeVideoChunks
+  }, [analyzeVideoChunks])
+
+  // Run video chunk analysis - only on true page refresh, not on navigation back
+  // Empty dependency array ensures this only runs once on mount
+  useEffect(() => {
+    console.log('useEffect analyzeVideoChunks - mount')
     const analysisStarted = sessionStorage.getItem('analysisStarted')
     
     let initialTimer: NodeJS.Timeout | null = null
     let interval: NodeJS.Timeout | null = null
 
-    if (!analysisStarted) {
-      // True refresh or first visit - start analysis
-      sessionStorage.setItem('analysisStarted', 'true')
+    // Use ref to prevent double-scheduling in Strict Mode
+    if (!analysisStarted && !timeoutScheduledRef.current) {
+      timeoutScheduledRef.current = true
       
       // Small delay to let videos load
+      console.log('Setting timeout')
+      
       initialTimer = setTimeout(() => {
-        analyzeVideoChunks()
+        console.log('Analyzing video chunks - timeout fired')
+        // Set sessionStorage only after timeout fires (prevents Strict Mode issues)
+        sessionStorage.setItem('analysisStarted', 'true')
+        // Use ref to call latest version of the function
+        analyzeVideoChunksRef.current()
       }, 5000)
 
       // Run analysis loop every 60 seconds
-      interval = setInterval(analyzeVideoChunks, 60000)
+      // interval = setInterval(() => analyzeVideoChunksRef.current(), 60000)
+    } else {
+      console.log('Skipping timeout - analysisStarted:', analysisStarted, 'timeoutScheduled:', timeoutScheduledRef.current)
     }
     // If flag exists, we navigated back - just show existing alerts (fetched separately)
 
     // Clear flag on true refresh/close so next refresh starts fresh
     const handleBeforeUnload = () => {
       sessionStorage.removeItem('analysisStarted')
+      timeoutScheduledRef.current = false
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
-      if (initialTimer) clearTimeout(initialTimer)
+      // Don't clear the timeout - let it run even through Strict Mode remount
+      // The ref prevents double-scheduling
       if (interval) clearInterval(interval)
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [analyzeVideoChunks])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty deps - only run on mount
 
   // Fetch alerts on mount and periodically
   useEffect(() => {
