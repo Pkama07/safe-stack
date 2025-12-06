@@ -30,8 +30,6 @@ L5: Unsafe Work Practices and Shortcuts
 
 Description: Repeated minor unsafe practices that increase risk over time, such as bypassing minor administrative procedures, failing to use handrails on stairs, or routinely leaving small spills uncleaned, indicating a pattern that can lead to more serious incidents.
 
----
-
 L6: Unprotected Work at Height ≤6 ft or Above Lower Levels
 
 Description: Work on platforms, mezzanines, roofs, or open-sided floors at or slightly above lower levels without adequate fall protection (guardrails, covers, or personal fall arrest) where a fall can cause serious injury but is not yet clearly in the highest-risk category (e.g., short unprotected edges, low mezzanine with cluttered lower level).
@@ -71,8 +69,6 @@ Description: Failure to establish or practice emergency procedures (fire, hazard
 L6: Repeated PPE Non-Use in High-Risk Areas
 
 Description: Pattern of employees failing to use required respiratory, eye/face, or hearing protection in areas with known high exposures, even after prior warnings or training, e.g., “Workers repeatedly welding without face shield where eye injury risk is high.”
-
----
 
 L7: Unprotected Work at Height >6 ft (Fall Protection – General Requirements)
 
