@@ -84,6 +84,7 @@ class AlertCreate(BaseModel):
     policy_id: int
     image_urls: list[str] = []
     explanation: str
+    user_email: Optional[str] = None
 
 
 # =============================================================================
@@ -217,6 +218,7 @@ def list_alerts(
     min_level: Optional[int] = Query(
         None, description="Filter by minimum policy level"
     ),
+    user_email: Optional[str] = Query(None, description="Filter by user email"),
     limit: int = Query(100, description="Maximum number of results"),
 ):
     """Get alerts with optional filters."""
@@ -237,6 +239,10 @@ def list_alerts(
     if min_level is not None:
         conditions.append("p.level >= ?")
         params.append(min_level)
+
+    if user_email is not None:
+        conditions.append("a.user_email = ?")
+        params.append(user_email)
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -299,9 +305,18 @@ def create_alert(alert: AlertCreate):
         conn.close()
         raise HTTPException(status_code=400, detail="Policy not found")
 
+    # Verify user exists if user_email is provided
+    if alert.user_email:
+        user = conn.execute(
+            "SELECT email FROM users WHERE email = ?", (alert.user_email,)
+        ).fetchone()
+        if not user:
+            conn.close()
+            raise HTTPException(status_code=400, detail="User not found")
+
     cursor = conn.execute(
-        "INSERT INTO alerts (policy_id, image_urls, explanation) VALUES (?, ?, ?)",
-        (alert.policy_id, json.dumps(alert.image_urls), alert.explanation),
+        "INSERT INTO alerts (policy_id, image_urls, explanation, user_email) VALUES (?, ?, ?, ?)",
+        (alert.policy_id, json.dumps(alert.image_urls), alert.explanation, alert.user_email),
     )
     conn.commit()
     alert_id = cursor.lastrowid

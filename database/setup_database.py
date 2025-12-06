@@ -62,6 +62,14 @@ MIGRATIONS = [
         CREATE INDEX idx_alerts_timestamp ON alerts(timestamp);
     """,
     ),
+    (
+        4,
+        "Add user_email to alerts table",
+        """
+        ALTER TABLE alerts ADD COLUMN user_email TEXT REFERENCES users(email) ON DELETE SET NULL;
+        CREATE INDEX idx_alerts_user_email ON alerts(user_email);
+    """,
+    ),
 ]
 
 
