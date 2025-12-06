@@ -165,6 +165,23 @@ def update_policies_json(policy_enum: str, new_description: str):
         print(f"Error updating policies_latest.json: {e}")
 
 
+def find_policy_enum_by_title(title: str) -> Optional[str]:
+    """
+    Find the policy enum ID by matching the title.
+
+    Args:
+        title: The policy title to search for
+
+    Returns:
+        The policy enum ID if found, None otherwise
+    """
+    data = load_policies_json()
+    for policy in data.get("policies", []):
+        if policy["title"] == title:
+            return policy["id"]
+    return None
+
+
 # =============================================================================
 # Email Integration (Resend)
 # =============================================================================
@@ -900,6 +917,11 @@ def amend_policy(request: PolicyAmendmentRequest):
                 status_code=500, detail="Failed to generate amended policy description"
             )
 
+        # Find the policy enum ID from JSON by matching title
+        policy_enum = find_policy_enum_by_title(policy["title"])
+        if not policy_enum:
+            print(f"Warning: No policy_enum found for title: {policy['title']}")
+
         # Update the policy in the database
         conn.execute(
             "UPDATE policies SET description = ? WHERE id = ?",
@@ -907,8 +929,11 @@ def amend_policy(request: PolicyAmendmentRequest):
         )
         conn.commit()
 
-        # Also update policies.txt file
-        update_policies_file(policy["title"], policy["level"], amended_description)
+        # Update policies_latest.json (with versioning)
+        if policy_enum:
+            update_policies_json(policy_enum, amended_description)
+        else:
+            print(f"Skipping JSON update - no policy_enum for: {policy['title']}")
 
         # Fetch and return the updated policy
         updated_row = conn.execute(
