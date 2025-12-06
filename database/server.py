@@ -234,7 +234,7 @@ def analyze_video_with_gemini(video_base64: str, mime_type: str) -> list[dict]:
 
     try:
         response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3-pro-preview",
             contents=[
                 {
                     "role": "user",
@@ -329,7 +329,7 @@ def highlight_violation_with_nano_banana(
 
     try:
         response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash-preview-image-generation",
+            model="gemini-3-pro-image-preview",
             contents=[
                 {
                     "role": "user",
