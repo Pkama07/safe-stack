@@ -3,6 +3,70 @@ import { getPolicies, Violation } from './policies'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_CLOUD_KEY! })
 
+// Nano Banana Pro for image highlighting
+const HIGHLIGHT_PROMPT = `You are a safety inspector annotating a workplace image.
+
+Violation detected: {POLICY_NAME}
+Description: {DESCRIPTION}
+Reasoning: {REASONING}
+
+Edit this image to clearly highlight the safety hazard:
+- Draw a bright red circle or rectangular outline around the hazardous area
+- Add a small warning indicator or arrow pointing to the violation
+- Keep the rest of the image unchanged and recognizable
+- Make the highlight clearly visible but not obstructive
+- The highlight should make it immediately obvious where the safety issue is`
+
+export async function highlightViolation(
+  frameBase64: string,
+  violation: Violation
+): Promise<string> {
+  const prompt = HIGHLIGHT_PROMPT
+    .replace('{POLICY_NAME}', violation.policy_name)
+    .replace('{DESCRIPTION}', violation.description)
+    .replace('{REASONING}', violation.reasoning)
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: frameBase64,
+              },
+            },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+      config: {
+        responseModalities: ['IMAGE'],
+      },
+    })
+
+    // Extract the generated image from response
+    const parts = response.candidates?.[0]?.content?.parts
+    if (parts) {
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          return part.inlineData.data
+        }
+      }
+    }
+
+    throw new Error('No image returned from Nano Banana Pro')
+  } catch (error) {
+    console.error('Error highlighting violation:', error)
+    throw error
+  }
+}
+
 const ANALYSIS_PROMPT = `You are an expert workplace safety inspector analyzing video footage for OSHA safety violations.
 
 Given the following OSHA safety policies:

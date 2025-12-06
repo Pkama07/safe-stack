@@ -5,7 +5,9 @@ import VideoUploader from '@/components/VideoUploader'
 import VideoPlayer, { VideoPlayerRef } from '@/components/VideoPlayer'
 import ViolationsList from '@/components/ViolationsList'
 import LiveCamera from '@/components/LiveCamera'
+import HighlightedFrame from '@/components/HighlightedFrame'
 import { Violation } from '@/lib/types'
+import { extractFrameAtTimestamp, parseTimestamp } from '@/lib/video-utils'
 
 type Mode = 'upload' | 'live'
 
@@ -18,8 +20,14 @@ export default function Home() {
   const [status, setStatus] = useState('')
   const videoPlayerRef = useRef<VideoPlayerRef>(null)
 
+  // Highlight modal state
+  const [showHighlightModal, setShowHighlightModal] = useState(false)
+  const [selectedViolation, setSelectedViolation] = useState<Violation | null>(null)
+  const [originalFrame, setOriginalFrame] = useState<string | null>(null)
+  const [highlightedFrame, setHighlightedFrame] = useState<string | null>(null)
+  const [isHighlighting, setIsHighlighting] = useState(false)
+
   const handleVideoSelect = async (file: File) => {
-    // Create URL for video preview
     const url = URL.createObjectURL(file)
     setVideoUrl(url)
     setViolations([])
@@ -57,23 +65,75 @@ export default function Home() {
 
   const handleViolationClick = (timestamp: string) => {
     if (mode === 'upload' && videoPlayerRef.current) {
-      const parts = timestamp.split(':').map(Number)
-      let seconds = 0
-      if (parts.length === 2) {
-        seconds = parts[0] * 60 + parts[1]
-      } else if (parts.length === 3) {
-        seconds = parts[0] * 3600 + parts[1] * 60 + parts[2]
-      }
+      const seconds = parseTimestamp(timestamp)
       videoPlayerRef.current.seekTo(seconds)
     }
   }
 
+  const handleHighlightClick = async (violation: Violation) => {
+    if (mode !== 'upload' || !videoPlayerRef.current) {
+      setStatus('Highlighting is only available for uploaded videos')
+      return
+    }
+
+    const videoElement = videoPlayerRef.current.getVideoElement()
+    if (!videoElement) {
+      setStatus('Video element not available')
+      return
+    }
+
+    // Open modal and show loading
+    setSelectedViolation(violation)
+    setShowHighlightModal(true)
+    setIsHighlighting(true)
+    setOriginalFrame(null)
+    setHighlightedFrame(null)
+
+    try {
+      // Extract frame at violation timestamp
+      const timestamp = parseTimestamp(violation.timestamp)
+      const frameBase64 = await extractFrameAtTimestamp(videoElement, timestamp)
+      setOriginalFrame(frameBase64)
+
+      // Call API to highlight violation
+      const response = await fetch('/api/highlight-violation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          frame: frameBase64,
+          violation,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to highlight violation')
+      }
+
+      const data = await response.json()
+      setHighlightedFrame(data.highlightedImage)
+    } catch (error) {
+      console.error('Error highlighting violation:', error)
+      setStatus(
+        error instanceof Error ? error.message : 'Error highlighting violation'
+      )
+    } finally {
+      setIsHighlighting(false)
+    }
+  }
+
+  const handleCloseHighlight = () => {
+    setShowHighlightModal(false)
+    setSelectedViolation(null)
+    setOriginalFrame(null)
+    setHighlightedFrame(null)
+  }
+
   const handleLiveViolations = useCallback((newViolations: Violation[]) => {
     setViolations((prev) => {
-      // Avoid duplicates by checking timestamps
-      const existing = new Set(prev.map((v) => v.timestamp + v.policy_code))
+      const existing = new Set(prev.map((v) => v.timestamp + v.policy_name))
       const unique = newViolations.filter(
-        (v) => !existing.has(v.timestamp + v.policy_code)
+        (v) => !existing.has(v.timestamp + v.policy_name)
       )
       return [...prev, ...unique]
     })
@@ -183,11 +243,23 @@ export default function Home() {
             <ViolationsList
               violations={violations}
               onViolationClick={handleViolationClick}
+              onHighlightClick={mode === 'upload' ? handleHighlightClick : undefined}
               isLoading={isAnalyzing}
             />
           </div>
         </div>
       </div>
+
+      {/* Highlight Modal */}
+      {showHighlightModal && (
+        <HighlightedFrame
+          originalFrame={originalFrame}
+          highlightedFrame={highlightedFrame}
+          violation={selectedViolation}
+          isLoading={isHighlighting}
+          onClose={handleCloseHighlight}
+        />
+      )}
     </main>
   )
 }

@@ -5,6 +5,7 @@ import { Violation, getSeverityColor } from '@/lib/types'
 interface ViolationsListProps {
   violations: Violation[]
   onViolationClick?: (timestamp: string) => void
+  onHighlightClick?: (violation: Violation) => void
   isLoading?: boolean
 }
 
@@ -21,6 +22,7 @@ function parseTimestamp(timestamp: string): number {
 export default function ViolationsList({
   violations,
   onViolationClick,
+  onHighlightClick,
   isLoading,
 }: ViolationsListProps) {
   if (isLoading) {
@@ -75,19 +77,44 @@ export default function ViolationsList({
         {sortedViolations.map((violation, index) => (
           <div
             key={index}
-            onClick={() => onViolationClick?.(violation.timestamp)}
-            className="bg-gray-700/50 rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+            className="bg-gray-700/50 rounded-lg p-4 hover:bg-gray-700 transition-colors"
           >
             <div className="flex items-start gap-3">
-              <button
-                className="flex-shrink-0 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-mono"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onViolationClick?.(violation.timestamp)
-                }}
-              >
-                {violation.timestamp}
-              </button>
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                <button
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-mono"
+                  onClick={() => onViolationClick?.(violation.timestamp)}
+                >
+                  {violation.timestamp}
+                </button>
+                {onHighlightClick && (
+                  <button
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-xs font-medium flex items-center gap-1"
+                    onClick={() => onHighlightClick(violation)}
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                      />
+                    </svg>
+                    Highlight
+                  </button>
+                )}
+              </div>
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
