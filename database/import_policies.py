@@ -2,20 +2,15 @@
 """
 Policy Import Script
 ====================
-Reads policies from policies.txt and imports them into the database.
-
-Format expected in policies.txt:
-    L<level>: <Title>
-
-    Description: <description text>
+Imports policies from policies_latest.json into the database.
 """
 
+import json
 import sqlite3
-import re
 from pathlib import Path
 
 DATABASE_PATH = Path(__file__).parent.parent / "db" / "safestack.db"
-POLICIES_FILE = Path(__file__).parent.parent / "policies.txt"
+POLICIES_JSON = Path(__file__).parent.parent / "policies_latest.json"
 
 
 def get_connection():
@@ -26,125 +21,84 @@ def get_connection():
     return conn
 
 
-def parse_policies(file_path):
-    """Parse policies from the text file.
-
-    Returns a list of (level, title, description) tuples.
+def import_from_json(clear_existing=True):
     """
-    with open(file_path, "r") as f:
-        content = f.read()
-
-    policies = []
-
-    # Split by the L<number>: pattern to find each policy block
-    # Pattern: L followed by digits, colon, then title
-    pattern = r"L(\d+):\s*(.+?)\n\nDescription:\s*(.+?)(?=\n\nL\d+:|\Z)"
-
-    matches = re.findall(pattern, content, re.DOTALL)
-
-    for level_str, title, description in matches:
-        level = int(level_str)
-        title = title.strip()
-        description = description.strip()
-        policies.append((level, title, description))
-
-    return policies
-
-
-def import_policies(conn, policies, clear_existing=False):
-    """Import policies into the database.
+    Import policies from policies_latest.json into database.
 
     Args:
-        conn: Database connection
-        policies: List of (level, title, description) tuples
         clear_existing: If True, delete all existing policies first
     """
+    # Load JSON policies
+    with open(POLICIES_JSON, "r") as f:
+        data = json.load(f)
+
+    policies = data.get("policies", [])
+    if not policies:
+        print("No policies found in JSON file")
+        return
+
+    conn = get_connection()
     cursor = conn.cursor()
 
     if clear_existing:
-        # Need to delete alerts first due to foreign key constraint
+        # Delete alerts first due to foreign key constraint
         cursor.execute("DELETE FROM alerts")
         cursor.execute("DELETE FROM policies")
-        print("  ✓ Cleared existing policies and alerts")
+        print(f"  ✓ Cleared existing policies and alerts")
 
     inserted = 0
-    skipped = 0
-
-    for level, title, description in policies:
-        # Check if policy with same title already exists
-        existing = cursor.execute(
-            "SELECT id FROM policies WHERE title = ?", (title,)
-        ).fetchone()
-
-        if existing:
-            skipped += 1
-            continue
-
+    for policy in policies:
         cursor.execute(
-            "INSERT INTO policies (title, level, description) VALUES (?, ?, ?)",
-            (title, level, description),
+            "INSERT INTO policies (title, level, description, policy_enum) VALUES (?, ?, ?, ?)",
+            (policy["title"], policy["level"], policy["description"], policy["id"]),
         )
         inserted += 1
 
     conn.commit()
-    return inserted, skipped
+    conn.close()
+
+    return inserted
 
 
 def main():
     print("=" * 60)
-    print("Policy Import")
+    print("Policy Import from JSON")
     print("=" * 60)
-    print(f"\nPolicies file: {POLICIES_FILE}")
+    print(f"\nJSON file: {POLICIES_JSON}")
     print(f"Database: {DATABASE_PATH}\n")
 
-    # Check if policies file exists
-    if not POLICIES_FILE.exists():
-        print(f"✗ ERROR: Policies file not found at {POLICIES_FILE}")
+    # Check if JSON file exists
+    if not POLICIES_JSON.exists():
+        print(f"✗ ERROR: JSON file not found at {POLICIES_JSON}")
         return
 
-    # Parse policies from file
-    print("Parsing policies from file...")
-    policies = parse_policies(POLICIES_FILE)
-    print(f"  ✓ Found {len(policies)} policies\n")
+    # Load and preview
+    with open(POLICIES_JSON, "r") as f:
+        data = json.load(f)
 
-    # Show preview
-    print("Preview of parsed policies:")
+    policies = data.get("policies", [])
+    print(f"Found {len(policies)} policies in JSON (version {data.get('version', 'unknown')})\n")
+
+    print("Preview:")
     print("-" * 60)
-    for i, (level, title, desc) in enumerate(policies[:3]):
-        print(f"  L{level}: {title}")
-        print(f"        {desc[:60]}...")
-        print()
+    for policy in policies[:3]:
+        print(f"  [{policy['id']}] {policy['title']} (Level {policy['level']})")
     if len(policies) > 3:
         print(f"  ... and {len(policies) - 3} more\n")
 
-    # Connect to database
-    print("Connecting to database...")
-    try:
-        conn = get_connection()
-        print("  ✓ Connected\n")
-    except Exception as e:
-        print(f"  ✗ ERROR: Could not connect to database: {e}")
-        print(f"    Make sure to run setup_database.py first.")
-        return
-
-    # Import policies (clear existing to replace with file contents)
+    # Import
     print("Importing policies (replacing existing)...")
-    inserted, skipped = import_policies(conn, policies, clear_existing=True)
-    print(f"  ✓ Inserted {inserted} policies")
-    if skipped:
-        print(f"  ⊘ Skipped {skipped} (already exist)")
-
-    # Show final count
-    total = conn.execute("SELECT COUNT(*) FROM policies").fetchone()[0]
-    print(f"\nTotal policies in database: {total}")
+    inserted = import_from_json(clear_existing=True)
+    print(f"  ✓ Imported {inserted} policies")
 
     # Show breakdown by level
+    conn = get_connection()
     print("\nPolicies by level:")
     rows = conn.execute(
         "SELECT level, COUNT(*) as count FROM policies GROUP BY level ORDER BY level"
     ).fetchall()
     for row in rows:
-        print(f"  L{row['level']}: {row['count']} policies")
+        print(f"  Level {row['level']}: {row['count']} policies")
 
     conn.close()
     print("\n✓ Import complete!\n")
