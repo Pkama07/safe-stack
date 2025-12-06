@@ -1,0 +1,20 @@
+{
+  servers {
+    # Enable HTTP/1.1 + HTTP/2 + HTTP/3 (QUIC) for all sites
+    protocols h1 h2 h3
+  }
+}
+
+# Local HTTPS entrypoint with HTTP/3 and Alt-Svc advertising
+https://localhost {
+  tls internal
+
+  encode zstd gzip
+
+  header {
+    # Make sure browsers learn about HTTP/3 quickly
+    Alt-Svc "h3=\":443\"; ma=2592000, h3-29=\":443\"; ma=2592000"
+  }
+
+  reverse_proxy http://127.0.0.1:3000
+}
