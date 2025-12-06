@@ -17,9 +17,10 @@ export interface Alert {
 
 interface AlertCardProps {
   alert: Alert
+  onFeedbackClick?: () => void
 }
 
-export default function AlertCard({ alert }: AlertCardProps) {
+export default function AlertCard({ alert, onFeedbackClick }: AlertCardProps) {
   const getRiskStyle = () => {
     // Map policy_level to risk display
     switch (alert.policy_level) {
@@ -47,7 +48,7 @@ export default function AlertCard({ alert }: AlertCardProps) {
   }
 
   return (
-    <Link 
+    <Link
       href={`/alerts/${alert.id}`}
       className="block bg-[#1a1f2e] rounded-lg p-4 border border-white/5 cursor-pointer hover:bg-[#1f2536] hover:border-white/10 transition-all"
     >
@@ -64,14 +65,21 @@ export default function AlertCard({ alert }: AlertCardProps) {
           <span className="text-stone-600">|</span>
           <span className={riskStyle.text}>{riskStyle.label}</span>
         </div>
-        <button 
-          onClick={(e) => e.stopPropagation()}
-          className="text-stone-500 hover:text-white transition-colors"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-          </svg>
-        </button>
+        {onFeedbackClick && (
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onFeedbackClick()
+            }}
+            className="text-orange-400 hover:text-orange-300 hover:bg-orange-500/20 p-1 rounded transition-colors"
+            title="Report false positive"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Content */}

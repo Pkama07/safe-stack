@@ -52,6 +52,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 ALERT_EMAIL_RECIPIENT = os.getenv("ALERT_EMAIL_RECIPIENT", "")
 
 DATABASE_PATH = Path(__file__).parent.parent / "db" / "safestack.db"
+POLICIES_FILE_PATH = Path(__file__).parent.parent / "policies.txt"
 
 app = FastAPI(
     title="SafeStack API",
@@ -95,6 +96,50 @@ def row_to_dict(row):
 def rows_to_list(rows):
     """Convert list of sqlite3.Row to list of dicts."""
     return [dict(row) for row in rows]
+
+
+def update_policies_file(policy_title: str, policy_level: int, new_description: str):
+    """
+    Update a policy's description in policies.txt.
+
+    The file format is:
+    [Severity N] Policy Title
+
+    Description: policy description text
+
+    Args:
+        policy_title: The exact title of the policy to update
+        policy_level: The severity level (1, 2, or 3)
+        new_description: The new description text
+    """
+    if not POLICIES_FILE_PATH.exists():
+        print(f"Warning: policies.txt not found at {POLICIES_FILE_PATH}")
+        return
+
+    try:
+        with open(POLICIES_FILE_PATH, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Build the pattern to find the policy block
+        # Format: [Severity N] Title\n\nDescription: text
+        escaped_title = re.escape(policy_title)
+        pattern = rf"(\[Severity {policy_level}\] {escaped_title})\n\nDescription: .+?(?=\n\n\[Severity|\Z)"
+
+        # Build the replacement
+        replacement = f"[Severity {policy_level}] {policy_title}\n\nDescription: {new_description}"
+
+        # Replace the policy block
+        new_content, count = re.subn(pattern, replacement, content, flags=re.DOTALL)
+
+        if count > 0:
+            with open(POLICIES_FILE_PATH, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            print(f"Updated policy in policies.txt: {policy_title}")
+        else:
+            print(f"Warning: Could not find policy in policies.txt: {policy_title}")
+
+    except Exception as e:
+        print(f"Error updating policies.txt: {e}")
 
 
 # =============================================================================
@@ -842,6 +887,9 @@ def amend_policy(request: PolicyAmendmentRequest):
             (amended_description, policy_id),
         )
         conn.commit()
+
+        # Also update policies.txt file
+        update_policies_file(policy["title"], policy["level"], amended_description)
 
         # Fetch and return the updated policy
         updated_row = conn.execute(
