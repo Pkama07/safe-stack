@@ -100,6 +100,14 @@ MIGRATIONS = [
         ALTER TABLE alerts ADD COLUMN amended_images TEXT;
     """,
     ),
+    (
+        8,
+        "Add policy_enum field to policies table for JSON ID matching",
+        """
+        ALTER TABLE policies ADD COLUMN policy_enum TEXT;
+        CREATE INDEX IF NOT EXISTS idx_policies_enum ON policies(policy_enum);
+    """,
+    ),
 ]
 
 

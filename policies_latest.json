@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "updated_at": "2025-12-06T00:00:00Z",
+  "policies": [
+    {
+      "id": "POOR_HOUSEKEEPING_AND_WALKING_WORKING_SURFACES",
+      "title": "Poor Housekeeping and Walking-Working Surfaces",
+      "level": 1,
+      "description": "Accumulation of trash, tools, cords, or materials in aisles, walkways, or work areas that creates slip, trip, and fall hazards, including failure to promptly clean spills or repair obvious floor defects (e.g., broken stair rails, loose mats, uneven surfaces)."
+    },
+    {
+      "id": "BLOCKED_EXITS_AND_EMERGENCY_EQUIPMENT",
+      "title": "Blocked Exits and Emergency Equipment",
+      "level": 1,
+      "description": "Storing materials in front of emergency exits, exit routes, electrical panels, fire extinguishers, eyewash stations, or other emergency equipment so that access is restricted or visibility is blocked, e.g., \"Pallets stored in front of the fire exit door.\""
+    },
+    {
+      "id": "UNSAFE_STORAGE_AND_PALLET_STACKING",
+      "title": "Unsafe Storage and Pallet Stacking",
+      "level": 1,
+      "description": "Stacking pallets or materials in an unstable manner (leaning, mixed or broken pallets, irregular stacks), or above posted/rated capacities, where loads could shift or fall even if no immediate collapse is occurring, e.g., \"Pallets stacked to the ceiling, visibly leaning.\""
+    },
+    {
+      "id": "SUBSTANDARD_LADDER_SETUP_AND_USE",
+      "title": "Substandard Ladder Setup and Use",
+      "level": 1,
+      "description": "Use of portable ladders that are not set up on stable surfaces or at the correct angle, minor overreaching from ladders, or standing on the top cap/step of a step ladder without immediate exposure to a fall over 6 feet, e.g., \"Worker standing on top step of step ladder to reach a box.\""
+    },
+    {
+      "id": "INADEQUATE_HAZARD_COMMUNICATION",
+      "title": "Inadequate Hazard Communication",
+      "level": 1,
+      "description": "Missing or incomplete labels on chemical containers, lack of readily accessible Safety Data Sheets (SDSs), or employees unable to explain basic hazards of chemicals they routinely use, where hazardous exposure is possible but not yet occurring, e.g., \"Unlabeled spray bottle with solvent in the shop.\""
+    },
+    {
+      "id": "INADEQUATE_PERSONAL_PROTECTIVE_EQUIPMENT_PPE_USE",
+      "title": "Inadequate Personal Protective Equipment (PPE) Use",
+      "level": 1,
+      "description": "Failure to wear required basic PPE (e.g., safety glasses, gloves, hearing protection) in posted areas where hazards exist, but without immediate life-threatening exposure, e.g., \"Employees grinding without face shield in area where guards and ventilation exist.\""
+    },
+    {
+      "id": "MINOR_ELECTRICAL_HAZARDS",
+      "title": "Minor Electrical Hazards",
+      "level": 1,
+      "description": "Use of damaged extension cords, daisy-chained power strips, extension cords used as permanent wiring, or cords routed across walkways without protection, where live parts are not directly exposed but fire or trip risks are present."
+    },
+    {
+      "id": "UNSAFE_WORK_PRACTICES_AND_SHORTCUTS",
+      "title": "Unsafe Work Practices and Shortcuts",
+      "level": 1,
+      "description": "Repeated minor unsafe practices that increase risk over time, such as bypassing minor administrative procedures, failing to use handrails on stairs, or routinely leaving small spills uncleaned, indicating a pattern that can lead to more serious incidents."
+    },
+    {
+      "id": "UNPROTECTED_WORK_AT_HEIGHT_6_FT_OR_LESS",
+      "title": "Unprotected Work at Height (6 ft or less)",
+      "level": 2,
+      "description": "Work on platforms, mezzanines, roofs, or open-sided floors at or slightly above lower levels without adequate fall protection (guardrails, covers, or personal fall arrest) where a fall can cause serious injury but is not yet clearly in the highest-risk category (e.g., short unprotected edges, low mezzanine with cluttered lower level)."
+    },
+    {
+      "id": "IMPROPER_LADDER_USE_WITH_SIGNIFICANT_FALL_RISK",
+      "title": "Improper Ladder Use with Significant Fall Risk",
+      "level": 2,
+      "description": "Use of ladders on unstable surfaces, near edges, or in ways that could lead to falls from heights where serious injuries are likely, such as leaning extension ladders on non-secured points, using metal ladders near energized equipment, or climbing with hands full."
+    },
+    {
+      "id": "MACHINE_GUARDING_DEFICIENCIES_POINT_OF_OPERATION_ACCESSIBLE",
+      "title": "Machine Guarding Deficiencies (Point-of-Operation Accessible)",
+      "level": 2,
+      "description": "Missing, disabled, or improperly adjusted machine guards that allow hands or other body parts to reach points of operation, ingoing nip points, or rotating parts during normal use, but where the machine can still be locked out or taken out of service before use, e.g., \"Press running with interlock taped over.\""
+    },
+    {
+      "id": "INCOMPLETE_LOCKOUT_TAGOUT_DURING_SERVICING",
+      "title": "Incomplete Lockout/Tagout During Servicing",
+      "level": 2,
+      "description": "Servicing, maintenance, or clearing jams where some but not all energy sources are controlled, written procedures are missing or incomplete, or lockout/tagout devices are inconsistently applied, creating a strong possibility of unexpected startup or release of stored energy, e.g., \"Clearing jam on conveyor with only e-stop pressed.\""
+    },
+    {
+      "id": "POWERED_INDUSTRIAL_TRUCK_PIT_UNSAFE_OPERATION",
+      "title": "Powered Industrial Truck (PIT) Unsafe Operation",
+      "level": 2,
+      "description": "Operation of forklifts or other powered industrial trucks by untrained or uncertified operators, or unsafe driving behaviors such as excessive speed, riding on forks, failing to sound horn at intersections, or transporting unsecured loads in occupied areas, where collision or tip-over is likely, e.g., \"Forklift driving fast through blind corner in busy aisle.\""
+    },
+    {
+      "id": "UNSAFE_STORAGE_RACKING_AND_OVERLOADING",
+      "title": "Unsafe Storage, Racking, and Overloading",
+      "level": 2,
+      "description": "Racking systems, shelving, or storage areas that are obviously overloaded, visibly damaged, or improperly loaded (heavy items high, mixed pallets, missing beam pins) where collapse is credible but not yet occurring, e.g., \"Bent rack upright supporting multiple full pallets of product.\""
+    },
+    {
+      "id": "SIGNIFICANT_CHEMICAL_HANDLING_VIOLATIONS",
+      "title": "Significant Chemical Handling Violations",
+      "level": 2,
+      "description": "Handling hazardous chemicals (corrosives, solvents, toxic dusts) without appropriate PPE, ventilation, or containment where workers may be exposed to skin contact or inhalation at harmful levels, but no active spill or acute release is underway, e.g., \"Mixing solvent in small unventilated room without respirator.\""
+    },
+    {
+      "id": "SERIOUS_ELECTRICAL_EXPOSURE_NON_QUALIFIED_WORK",
+      "title": "Serious Electrical Exposure (Non-Qualified Work)",
+      "level": 2,
+      "description": "Access to energized parts by unqualified workers, use of non-rated tools or equipment around exposed conductors, or work in areas with open electrical cabinets without barriers, where shock or arc-flash is credible, e.g., \"Panel cover removed with live components exposed in occupied hallway.\""
+    },
+    {
+      "id": "INADEQUATE_EMERGENCY_PREPAREDNESS_AND_LACK_OF_PROCEDURES",
+      "title": "Inadequate Emergency Preparedness and Lack of Procedures",
+      "level": 2,
+      "description": "Failure to establish or practice emergency procedures (fire, hazardous material release, severe weather, workplace violence) where employees do not know how to respond, creating significant risk if an emergency occurs, e.g., \"No one knows evacuation routes or alarm tones in a multi-story facility.\""
+    },
+    {
+      "id": "REPEATED_PPE_NON_USE_IN_HIGH_RISK_AREAS",
+      "title": "Repeated PPE Non-Use in High-Risk Areas",
+      "level": 2,
+      "description": "Pattern of employees failing to use required respiratory, eye/face, or hearing protection in areas with known high exposures, even after prior warnings or training, e.g., \"Workers repeatedly welding without face shield where eye injury risk is high.\""
+    },
+    {
+      "id": "UNPROTECTED_WORK_AT_HEIGHT_GREATER_THAN_6_FT",
+      "title": "Unprotected Work at Height (Greater than 6 ft)",
+      "level": 3,
+      "description": "Employees working on roofs, leading edges, scaffolds, mezzanines, or other elevated walking-working surfaces more than 6 feet above lower levels without required fall protection systems (guardrails, safety nets, or personal fall arrest), e.g., \"Crew working on roof edge 20 ft up with no harnesses or guardrails.\""
+    },
+    {
+      "id": "SEVERE_LADDER_OR_SCAFFOLD_VIOLATIONS_WITH_IMMINENT_FALL_HAZARD",
+      "title": "Severe Ladder or Scaffold Violations with Imminent Fall Hazard",
+      "level": 3,
+      "description": "Use of ladders or scaffolds that are structurally unsound, improperly erected (missing guardrails or midrails, incomplete planking, unsecured base), or used in ways that create immediate risk of serious or fatal falls, e.g., \"Worker on top of mobile scaffold with missing guardrails and unlocked wheels.\""
+    },
+    {
+      "id": "ZERO_LOCKOUT_TAGOUT_DURING_HAZARDOUS_SERVICING",
+      "title": "Zero Lockout/Tagout During Hazardous Servicing",
+      "level": 3,
+      "description": "Servicing or maintaining equipment with exposed, hazardous energy sources (electrical, mechanical, hydraulic, pneumatic, chemical, thermal) where no lockout/tagout is applied and workers place body parts in danger zone, e.g., \"Maintenance inside mixer while another worker can start it from the control room.\""
+    },
+    {
+      "id": "BYPASSED_CRITICAL_MACHINE_GUARDING",
+      "title": "Bypassed Critical Machine Guarding",
+      "level": 3,
+      "description": "Deliberate removal, bypass, or defeat of critical guards or interlocks on presses, saws, conveyors, or other machinery so that hands or other body parts can be in the danger zone during cycling, with the machine actively operating, e.g., \"Light curtain taped over while operator reaches into running press.\""
+    },
+    {
+      "id": "CONFINED_SPACE_ENTRY_WITHOUT_REQUIRED_PROTECTIONS",
+      "title": "Confined Space Entry Without Required Protections",
+      "level": 3,
+      "description": "Entry into a permit-required confined space (tanks, pits, vaults, silos) without atmospheric testing, ventilation, entry permit, attendant, retrieval system, or rescue plan, especially where toxic, oxygen-deficient, or flammable atmospheres are possible, e.g., \"Worker climbs into tank to clean without testing or attendant.\""
+    },
+    {
+      "id": "ACUTE_CHEMICAL_RELEASE_OR_HIGH_EXPOSURE_WORK_WITHOUT_PROTECTION",
+      "title": "Acute Chemical Release or High-Exposure Work Without Protection",
+      "level": 3,
+      "description": "Work conducted during an active chemical leak/release, or in known high-exposure tasks, without appropriate respiratory protection, PPE, or controls, where serious acute health effects are likely, e.g., \"Cleaning large acid spill without respirator or chemical suit.\""
+    },
+    {
+      "id": "POWERED_INDUSTRIAL_TRUCK_VEHICLE_OPERATIONS_CREATING_IMMINENT_DANGER",
+      "title": "Powered Industrial Truck / Vehicle Operations Creating Imminent Danger",
+      "level": 3,
+      "description": "Forklift or vehicle use that presents an immediate risk of crushing, struck-by, or tip-over incidents, such as lifting workers on bare forks, driving under suspended loads, operating near unprotected edges, or driving with obstructed view at speed in pedestrian areas, e.g., \"Worker standing on forklift forks to reach high shelf while truck is moving.\""
+    },
+    {
+      "id": "BLOCKED_OR_LOCKED_EMERGENCY_EXITS_IN_OCCUPIED_AREAS",
+      "title": "Blocked or Locked Emergency Exits in Occupied Areas",
+      "level": 3,
+      "description": "Exit doors that are locked, chained, or blocked during operations, or exit routes that are impassable, preventing rapid evacuation in fire or other emergencies, e.g., \"Back exit door chained shut while workers are on shift.\""
+    },
+    {
+      "id": "CRITICAL_ELECTRICAL_HAZARDS_ENERGIZED_WORK_WITHOUT_PROTECTION",
+      "title": "Critical Electrical Hazards (Energized Work Without Protection)",
+      "level": 3,
+      "description": "Work performed on or near exposed, energized electrical conductors or circuit parts without appropriate training, PPE, and protective boundaries, including makeshift repairs, use of conductive tools, or contact with overhead lines, e.g., \"Unqualified worker repairing live panel with no PPE.\""
+    },
+    {
+      "id": "SEVERE_ERGONOMIC_OVEREXERTION_CONDITIONS_WITH_KNOWN_INJURIES",
+      "title": "Severe Ergonomic/Overexertion Conditions with Known Injuries",
+      "level": 3,
+      "description": "Work requiring frequent heavy lifting, extreme postures, or highly repetitive motions that has already resulted in serious musculoskeletal injuries, where controls have not been implemented and additional injuries are likely, e.g., \"Workers manually lifting 80 lb boxes all day with no mechanical aids despite prior back injury claims.\""
+    },
+    {
+      "id": "SERIOUS_WORKPLACE_VIOLENCE_RISK",
+      "title": "Serious Workplace Violence Risk",
+      "level": 3,
+      "description": "Credible threats, physical assaults, or known high-risk situations (e.g., prior violent incidents, unsecured public-facing operations) where no controls, training, or response plans are in place, creating immediate risk of serious harm, e.g., \"Employee threatened with violence by customer; no procedures or security response in place.\""
+    }
+  ]
+}

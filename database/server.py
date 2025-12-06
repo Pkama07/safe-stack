@@ -12,6 +12,7 @@ import base64
 import json
 import os
 import re
+import shutil
 import sqlite3
 import tempfile
 import uuid
@@ -52,7 +53,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 ALERT_EMAIL_RECIPIENT = os.getenv("ALERT_EMAIL_RECIPIENT", "")
 
 DATABASE_PATH = Path(__file__).parent.parent / "db" / "safestack.db"
-POLICIES_FILE_PATH = Path(__file__).parent.parent / "policies.txt"
+POLICIES_JSON_PATH = Path(__file__).parent.parent / "policies_latest.json"
 
 app = FastAPI(
     title="SafeStack API",
@@ -98,48 +99,70 @@ def rows_to_list(rows):
     return [dict(row) for row in rows]
 
 
-def update_policies_file(policy_title: str, policy_level: int, new_description: str):
+def load_policies_json() -> dict:
     """
-    Update a policy's description in policies.txt.
+    Load policies from the JSON file.
 
-    The file format is:
-    [Severity N] Policy Title
+    Returns:
+        Dictionary with version, updated_at, and policies array
+    """
+    if not POLICIES_JSON_PATH.exists():
+        print(f"Warning: policies_latest.json not found at {POLICIES_JSON_PATH}")
+        return {"version": 0, "updated_at": None, "policies": []}
 
-    Description: policy description text
+    with open(POLICIES_JSON_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def update_policies_json(policy_enum: str, new_description: str):
+    """
+    Update a policy's description in the JSON file with versioning.
+
+    Creates a backup of the current version before updating.
 
     Args:
-        policy_title: The exact title of the policy to update
-        policy_level: The severity level (1, 2, or 3)
+        policy_enum: The unique policy ID (e.g., "HARD_HAT_REQUIRED")
         new_description: The new description text
     """
-    if not POLICIES_FILE_PATH.exists():
-        print(f"Warning: policies.txt not found at {POLICIES_FILE_PATH}")
+    if not POLICIES_JSON_PATH.exists():
+        print(f"Warning: policies_latest.json not found at {POLICIES_JSON_PATH}")
         return
 
     try:
-        with open(POLICIES_FILE_PATH, "r", encoding="utf-8") as f:
-            content = f.read()
+        # Load current policies
+        data = load_policies_json()
+        current_version = data.get("version", 1)
 
-        # Build the pattern to find the policy block
-        # Format: [Severity N] Title\n\nDescription: text
-        escaped_title = re.escape(policy_title)
-        pattern = rf"(\[Severity {policy_level}\] {escaped_title})\n\nDescription: .+?(?=\n\n\[Severity|\Z)"
+        # Create backup: policies_v{version}.json
+        backup_path = POLICIES_JSON_PATH.parent / f"policies_v{current_version}.json"
+        shutil.copy(POLICIES_JSON_PATH, backup_path)
+        print(f"Created backup: {backup_path}")
 
-        # Build the replacement
-        replacement = f"[Severity {policy_level}] {policy_title}\n\nDescription: {new_description}"
+        # Find and update policy by ID
+        updated = False
+        for policy in data["policies"]:
+            if policy["id"] == policy_enum:
+                policy["description"] = new_description
+                updated = True
+                print(f"Updated policy: {policy_enum}")
+                break
 
-        # Replace the policy block
-        new_content, count = re.subn(pattern, replacement, content, flags=re.DOTALL)
+        if not updated:
+            print(f"Warning: Could not find policy with ID: {policy_enum}")
+            return
 
-        if count > 0:
-            with open(POLICIES_FILE_PATH, "w", encoding="utf-8") as f:
-                f.write(new_content)
-            print(f"Updated policy in policies.txt: {policy_title}")
-        else:
-            print(f"Warning: Could not find policy in policies.txt: {policy_title}")
+        # Increment version and update timestamp
+        data["version"] = current_version + 1
+        data["updated_at"] = datetime.utcnow().isoformat() + "Z"
+
+        # Save updated policies
+        with open(POLICIES_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+        print(f"Policies updated to version {data['version']}")
 
     except Exception as e:
-        print(f"Error updating policies.txt: {e}")
+        print(f"Error updating policies_latest.json: {e}")
 
 
 # =============================================================================
@@ -210,20 +233,16 @@ def send_alert_email(
 
 
 def get_policies() -> str:
-    """Load policies from the database and format them for Gemini analysis."""
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT title, level, description FROM policies ORDER BY level, title"
-    ).fetchall()
-    conn.close()
+    """Load policies from JSON file and format them for Gemini analysis."""
+    data = load_policies_json()
 
-    if not rows:
+    if not data.get("policies"):
         return ""
 
-    # Format policies in the same format as policies.txt
+    # Format policies for Gemini prompt
     formatted_policies = []
-    for row in rows:
-        policy_text = f"[Severity {row['level']}] {row['title']}\n\nDescription: {row['description'] or ''}"
+    for policy in data["policies"]:
+        policy_text = f"[Severity {policy['level']}] {policy['title']}\n\nDescription: {policy.get('description', '')}"
         formatted_policies.append(policy_text)
 
     return "\n\n".join(formatted_policies)
