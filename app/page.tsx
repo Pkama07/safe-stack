@@ -7,7 +7,6 @@ import { Camera } from '@/components/CameraFeed'
 import AlertStream from '@/components/AlertStream'
 import { Alert } from '@/components/AlertCard'
 import DailyAlerts from '@/components/DailyAlerts'
-import QuickLinks from '@/components/QuickLinks'
 import { mergeAlerts } from '@/lib/alerts'
 
 // Initial camera configurations with video stream URLs
@@ -119,7 +118,7 @@ export default function Home() {
             if (Array.isArray(result.alerts)) {
               const mapped = result.alerts
                 .map(mapBackendAlertToUI)
-                .filter((a): a is Alert => Boolean(a))
+                .filter((a: Alert | null) => Boolean(a))
               if (mapped.length > 0) {
                 setAlerts((prev) => {
                   const next = mergeAlerts(prev, mapped)
@@ -316,10 +315,6 @@ export default function Home() {
               highRisk={highRiskAlerts}
               mediumRisk={mediumRiskAlerts}
               lowRisk={lowRiskAlerts}
-            />
-            <QuickLinks
-              onGenerateReport={handleGenerateReport}
-              onQuickAnalysis={handleQuickAnalysis}
             />
           </div>
         </div>
