@@ -12,7 +12,7 @@ import QuickLinks from '@/components/QuickLinks'
 // Camera configurations with video stream URLs
 // Place video files in public/videos/ (e.g., cam1.mp4, cam2.mp4)
 const mockCameras: Camera[] = [
-  { id: '1', name: 'Loading Dock B - Cam 1', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam1.mp4' },
+  { id: '1', name: 'Loading Dock B - Cam 1', location: 'Loading Dock B', status: 'idle', streamUrl: 'https://ksbfdhccpkfycuyngwhv.supabase.co/storage/v1/object/public/uploads-bucket/Video_Generation_Regular_Operations_to_Oil_Spill.mp4' },
   { id: '2', name: 'Loading Dock B - Cam 2', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam2.mp4' },
   { id: '3', name: 'Loading Dock B - Cam 3', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam3.mp4' },
   { id: '4', name: 'Loading Dock B - Cam 4', location: 'Loading Dock B', status: 'analyzing', streamUrl: '/videos/cam4.mp4' },
