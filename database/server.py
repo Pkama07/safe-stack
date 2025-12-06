@@ -483,22 +483,13 @@ def health_check():
 # =============================================================================
 
 if __name__ == "__main__":
-    # import uvicorn
+    import uvicorn
 
-    # print("=" * 60)
-    # print("SafeStack API Server")
-    # print("=" * 60)
-    # print(f"\nDatabase: {DATABASE_PATH}")
-    # print(f"Docs: http://localhost:8000/docs")
-    # print(f"API:  http://localhost:8000\n")
+    print("=" * 60)
+    print("SafeStack API Server")
+    print("=" * 60)
+    print(f"\nDatabase: {DATABASE_PATH}")
+    print(f"Docs: http://localhost:8000/docs")
+    print(f"API:  http://localhost:8000\n")
 
-    # uvicorn.run(app, host="0.0.0.0", port=8000)
-
-    send_alert_email(
-        recipient="pradyun774@gmail.com",
-        image_urls=[
-            "https://cloudinary-marketing-res.cloudinary.com/images/w_1000,c_scale/v1679921049/Image_URL_header/Image_URL_header-png?_i=AA"
-        ],
-        body="There was a safety violation in the warehouse. Please review the images and take appropriate action.",
-        subject="There was a safety violation",
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
