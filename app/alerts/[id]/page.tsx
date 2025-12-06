@@ -50,12 +50,21 @@ export default function AlertDetailPage() {
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false)
 
   useEffect(() => {
-    const fetchAlert = async () => {
-      setIsLoading(true)
-      setError(null)
-
+    // Try cached alert first for instant render
+    const cached = sessionStorage.getItem(`alert-${id}`)
+    if (cached) {
       try {
-        const response = await fetch(`/api/alerts/${id}`)
+        const parsed = JSON.parse(cached) as Alert
+        setAlert(parsed)
+        setIsLoading(false)
+      } catch (e) {
+        console.warn('Failed to parse cached alert', e)
+      }
+    }
+
+    const fetchAlert = async () => {
+      try {
+        const response = await fetch(`/api/alerts/${id}`, { cache: 'no-store' })
 
         if (!response.ok) {
           if (response.status === 404) {
@@ -67,8 +76,15 @@ export default function AlertDetailPage() {
 
         const data = await response.json()
         setAlert(data)
+        sessionStorage.setItem(`alert-${id}`, JSON.stringify(data))
+        setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred')
+        // If we already have a cached alert, don't block UI on errors
+        if (!alert) {
+          setError(err instanceof Error ? err.message : 'An error occurred')
+          setIsLoading(false)
+        }
+        console.error('Failed to fetch alert', err)
       } finally {
         setIsLoading(false)
       }

@@ -1366,8 +1366,8 @@ async def analyze_video_full(
 
                 # Upload original frame to Supabase
                 original_filename = f"frame_{video_id}_{uuid.uuid4().hex}.png"
-                original_image_url = upload_image_to_supabase(
-                    frame_base64, original_filename
+                original_image_url = await asyncio.to_thread(
+                    upload_image_to_supabase, frame_base64, original_filename
                 )
 
                 # Create alert record with original frame
@@ -1431,7 +1431,8 @@ Camera: {camera_id}
                         """.strip()
 
                         email_image_url = original_image_url
-                        send_alert_email(
+                        await asyncio.to_thread(
+                            send_alert_email,
                             recipient=ALERT_EMAIL_RECIPIENT,
                             image_urls=[email_image_url],
                             body=email_body,
