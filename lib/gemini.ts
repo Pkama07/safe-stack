@@ -12,9 +12,8 @@ Given the following OSHA safety policies:
 
 Analyze the video carefully and identify ANY safety violations you observe. For each violation found, provide:
 - timestamp: The time in the video where the violation occurs (MM:SS format)
-- policy_code: The specific policy code (e.g., "L5", "L6", "L7")
 - policy_name: The name of the violated policy (e.g., "Poor Housekeeping and Walking-Working Surfaces")
-- severity: The severity level (L5 = Minor, L6 = Serious, L7 = Critical)
+- severity: The severity level exactly as shown in brackets in the policy (must be one of: "Severity 1", "Severity 2", or "Severity 3")
 - description: What you observed in the video
 - reasoning: Why this constitutes a violation of the specific policy
 
@@ -28,9 +27,8 @@ Return your analysis as a JSON array of violations:
 [
   {
     "timestamp": "00:15",
-    "policy_code": "L5",
     "policy_name": "Poor Housekeeping and Walking-Working Surfaces",
-    "severity": "L5",
+    "severity": "Severity 1",
     "description": "Tools and materials scattered across walkway",
     "reasoning": "This creates slip, trip, and fall hazards as per OSHA guidelines"
   }
@@ -96,7 +94,9 @@ ${policies}
 Analyze this frame and identify ANY safety violations visible. The current timestamp is ${currentTimestamp}.
 
 Return your analysis as a JSON array (empty array if no violations):
-[{"timestamp": "${currentTimestamp}", "policy_code": "L5", "policy_name": "...", "severity": "L5", "description": "...", "reasoning": "..."}]
+[{"timestamp": "${currentTimestamp}", "policy_name": "...", "severity": "Severity 1", "description": "...", "reasoning": "..."}]
+
+Severity must be exactly one of: "Severity 1", "Severity 2", or "Severity 3"
 
 Return ONLY valid JSON.`
 

@@ -60,13 +60,13 @@ export default function ViolationsList({
         </h3>
         <div className="flex gap-2 text-xs">
           <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded">
-            L5 Minor
+            Severity 1
           </span>
           <span className="px-2 py-1 bg-orange-500/20 text-orange-500 rounded">
-            L6 Serious
+            Severity 2
           </span>
           <span className="px-2 py-1 bg-red-600/20 text-red-500 rounded">
-            L7 Critical
+            Severity 3
           </span>
         </div>
       </div>
