@@ -78,6 +78,14 @@ export default function AlertDetailPage() {
       setError(null)
       
       try {
+        // Check sessionStorage cache first for instant load
+        const cached = sessionStorage.getItem(`alert-${id}`)
+        if (cached) {
+          setAlert(JSON.parse(cached))
+          setIsLoading(false)
+          return
+        }
+
         const response = await fetch(`/api/alerts/${id}`)
         
         if (!response.ok) {
@@ -90,6 +98,8 @@ export default function AlertDetailPage() {
         
         const data = await response.json()
         setAlert(data)
+        // Cache for future visits
+        sessionStorage.setItem(`alert-${id}`, JSON.stringify(data))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {

@@ -4,10 +4,9 @@ import AlertCard, { Alert } from './AlertCard'
 
 interface AlertStreamProps {
   alerts: Alert[]
-  onReviewClick?: (alert: Alert) => void
 }
 
-export default function AlertStream({ alerts, onReviewClick }: AlertStreamProps) {
+export default function AlertStream({ alerts }: AlertStreamProps) {
   return (
     <div className="bg-[#0f1419] rounded-lg border border-white/10 max-h-[calc(100vh-180px)] flex flex-col">
       {/* Header */}
@@ -32,7 +31,6 @@ export default function AlertStream({ alerts, onReviewClick }: AlertStreamProps)
             <AlertCard
               key={alert.id}
               alert={alert}
-              onReviewClick={() => onReviewClick?.(alert)}
             />
           ))
         )}

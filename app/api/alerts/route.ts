@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 
+// Force dynamic to avoid caching issues
+export const dynamic = 'force-dynamic'
+
 export interface Alert {
   id: number
   policy_id: number

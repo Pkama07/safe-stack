@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 export interface Alert {
   id: number
   policy_id: number
@@ -15,10 +17,9 @@ export interface Alert {
 
 interface AlertCardProps {
   alert: Alert
-  onReviewClick?: () => void
 }
 
-export default function AlertCard({ alert, onReviewClick }: AlertCardProps) {
+export default function AlertCard({ alert }: AlertCardProps) {
   const getRiskStyle = () => {
     // Map policy_level to risk display
     switch (alert.policy_level) {
@@ -46,9 +47,9 @@ export default function AlertCard({ alert, onReviewClick }: AlertCardProps) {
   }
 
   return (
-    <div 
-      onClick={onReviewClick}
-      className="bg-[#1a1f2e] rounded-lg p-4 border border-white/5 cursor-pointer hover:bg-[#1f2536] hover:border-white/10 transition-all"
+    <Link 
+      href={`/alerts/${alert.id}`}
+      className="block bg-[#1a1f2e] rounded-lg p-4 border border-white/5 cursor-pointer hover:bg-[#1f2536] hover:border-white/10 transition-all"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
@@ -112,6 +113,6 @@ export default function AlertCard({ alert, onReviewClick }: AlertCardProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </div>
-    </div>
+    </Link>
   )
 }

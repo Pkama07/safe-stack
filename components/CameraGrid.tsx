@@ -41,23 +41,36 @@ const CameraGrid = forwardRef<CameraGridRef, CameraGridProps>(({ cameras, onCame
     captureAllVideoChunks: async (durationMs: number) => {
       const chunks: Array<{ cameraId: string; chunk: { base64: string; mimeType: string } }> = []
       
-      // Capture chunks from all cameras in parallel
-      const promises = cameras.map(async (camera) => {
+      console.log(`Starting video capture from ${cameras.length} cameras for ${durationMs}ms each`)
+      
+      // Capture chunks from all cameras SEQUENTIALLY to avoid overwhelming the browser
+      // This is more reliable than parallel capture which can cause issues with MediaRecorder
+      for (const camera of cameras) {
+        console.log(`[Camera ${camera.id}] Starting capture...`)
         const cameraRef = cameraRefs.current.get(camera.id)
-        const chunk = await cameraRef?.captureVideoChunk(durationMs)
-        if (chunk) {
-          return { cameraId: camera.id, chunk }
+        
+        if (!cameraRef) {
+          console.error(`[Camera ${camera.id}] No ref found in cameraRefs map`)
+          continue
         }
-        return null
-      })
-
-      const results = await Promise.all(promises)
-      results.forEach(result => {
-        if (result) {
-          chunks.push(result)
+        
+        try {
+          const chunk = await cameraRef.captureVideoChunk(durationMs)
+          if (chunk) {
+            console.log(`[Camera ${camera.id}] Capture successful, base64 length: ${chunk.base64.length}`)
+            chunks.push({ cameraId: camera.id, chunk })
+          } else {
+            console.error(`[Camera ${camera.id}] Capture returned null`)
+          }
+        } catch (error) {
+          console.error(`[Camera ${camera.id}] Capture error:`, error)
         }
-      })
+        
+        // Small delay between captures to let browser resources settle
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
 
+      console.log(`Video capture complete: ${chunks.length}/${cameras.length} cameras successful`)
       return chunks
     }
   }))

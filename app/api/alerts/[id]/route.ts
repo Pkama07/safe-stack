@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 
+// Force dynamic to avoid caching issues
+export const dynamic = 'force-dynamic'
+
 export interface Alert {
   id: number
   policy_id: number
@@ -30,12 +33,20 @@ export async function GET(
   try {
     const { id } = await params
 
+    // Add timeout to avoid hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
     const response = await fetch(`${BACKEND_URL}/alerts/${id}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
+      cache: 'no-store',
     })
+
+    clearTimeout(timeoutId)
 
     if (!response.ok) {
       if (response.status === 404) {

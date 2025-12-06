@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import CameraGrid, { CameraGridRef } from '@/components/CameraGrid'
 import { Camera } from '@/components/CameraFeed'
@@ -21,7 +20,6 @@ const initialCameras: Camera[] = [
 ]
 
 export default function Home() {
-  const router = useRouter()
   const [cameras, setCameras] = useState<Camera[]>(initialCameras)
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -35,10 +33,16 @@ export default function Home() {
   // Fetch alerts from the backend
   const fetchAlerts = useCallback(async () => {
     try {
-      const response = await fetch('/api/alerts?limit=50')
+      const response = await fetch('/api/alerts?limit=100', {
+        cache: 'no-store',
+      })
       if (response.ok) {
         const data = await response.json()
         setAlerts(data)
+        // Cache each alert for instant detail page loading
+        data.forEach((alert: Alert) => {
+          sessionStorage.setItem(`alert-${alert.id}`, JSON.stringify(alert))
+        })
       }
     } catch (err) {
       console.error('Error fetching alerts:', err)
@@ -54,10 +58,16 @@ export default function Home() {
       // Set all cameras to analyzing status
       setCameras(prev => prev.map(c => ({ ...c, status: 'analyzing' as const })))
 
-      // Capture 5-second video chunks from all cameras in parallel
-      console.log('Capturing video chunks from all cameras...')
+      // Capture 5-second video chunks from all cameras sequentially
+      console.log(`Capturing ${CHUNK_DURATION_MS}ms video chunks from all ${cameras.length} cameras...`)
       const chunks = await cameraGridRef.current.captureAllVideoChunks(CHUNK_DURATION_MS)
-      console.log(`Captured ${chunks.length} video chunks`)
+      console.log(`Successfully captured ${chunks.length}/${cameras.length} video chunks`)
+      
+      if (chunks.length === 0) {
+        console.error('No video chunks were captured! Check browser console for errors.')
+        setCameras(prev => prev.map(c => ({ ...c, status: 'idle' as const })))
+        return
+      }
 
       // Analyze each video chunk
       for (const { cameraId, chunk } of chunks) {
@@ -118,16 +128,18 @@ export default function Home() {
     }
   }, [cameras, fetchAlerts])
 
-  // Run video chunk analysis - capture 5s, then analyze, then repeat
+  // Run video chunk analysis - capture 5s per camera (sequential), then analyze, then repeat
   useEffect(() => {
     // Initial delay to let videos load
     const initialTimer = setTimeout(() => {
       analyzeVideoChunks()
-    }, 3000)
+    }, 5000)
 
-    // Run analysis loop - after each analysis completes, wait a moment then start again
-    // The interval accounts for capture time + analysis time
-    const interval = setInterval(analyzeVideoChunks, 15000) // 5s capture + ~10s for analysis
+    // Run analysis loop - the interval should be longer than total processing time
+    // Sequential capture: ~5s per camera × 6 cameras = 30s
+    // Plus analysis time for each camera
+    // Using a long interval since isAnalyzingRef prevents overlapping runs
+    const interval = setInterval(analyzeVideoChunks, 60000) // 60 seconds between analysis cycles
 
     return () => {
       clearTimeout(initialTimer)
@@ -153,10 +165,6 @@ export default function Home() {
 
   const handleCameraClick = (camera: Camera) => {
     console.log('Camera clicked:', camera)
-  }
-
-  const handleReviewAlert = (alert: Alert) => {
-    router.push(`/alerts/${alert.id}`)
   }
 
   const handleGenerateReport = () => {
@@ -198,7 +206,7 @@ export default function Home() {
 
           {/* Middle Column - Alert Stream (4 cols) */}
           <div className="col-span-12 lg:col-span-4">
-            <AlertStream alerts={alerts} onReviewClick={handleReviewAlert} />
+            <AlertStream alerts={alerts} />
           </div>
 
           {/* Right Column - Widgets (3 cols) */}

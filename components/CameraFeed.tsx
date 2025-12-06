@@ -42,18 +42,48 @@ const CameraFeed = forwardRef<CameraFeedRef, CameraFeedProps>(({ camera, onClick
 
     captureVideoChunk: async (durationMs: number): Promise<{ base64: string; mimeType: string } | null> => {
       const video = videoRef.current
-      if (!video || video.readyState < 2) return null
+      if (!video) {
+        console.error('Video element not found')
+        return null
+      }
+      
+      if (video.readyState < 2) {
+        console.error('Video not ready, readyState:', video.readyState)
+        return null
+      }
 
       try {
+        // Check if captureStream is supported
+        if (!('captureStream' in video)) {
+          console.error('captureStream not supported on this video element')
+          return null
+        }
+
         // Get video stream from the video element
-        const stream = (video as HTMLVideoElement & { captureStream: () => MediaStream }).captureStream()
+        const stream = (video as HTMLVideoElement & { captureStream: (frameRate?: number) => MediaStream }).captureStream(30)
+        
+        // Check if stream has video tracks
+        const videoTracks = stream.getVideoTracks()
+        if (videoTracks.length === 0) {
+          console.error('No video tracks in captured stream - this may be due to cross-origin restrictions')
+          return null
+        }
+        
+        console.log(`Stream captured with ${videoTracks.length} video track(s)`)
         
         // Determine supported MIME type
-        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-          ? 'video/webm;codecs=vp9'
-          : MediaRecorder.isTypeSupported('video/webm')
-            ? 'video/webm'
-            : 'video/mp4'
+        let mimeType = 'video/webm'
+        if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+          mimeType = 'video/webm;codecs=vp9'
+        } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+          mimeType = 'video/webm;codecs=vp8'
+        } else if (MediaRecorder.isTypeSupported('video/webm')) {
+          mimeType = 'video/webm'
+        } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+          mimeType = 'video/mp4'
+        }
+        
+        console.log(`Using MIME type: ${mimeType}`)
 
         const mediaRecorder = new MediaRecorder(stream, { mimeType })
         const chunks: Blob[] = []
@@ -62,30 +92,61 @@ const CameraFeed = forwardRef<CameraFeedRef, CameraFeedProps>(({ camera, onClick
           mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
               chunks.push(event.data)
+              console.log(`Received chunk of size: ${event.data.size}`)
             }
           }
 
           mediaRecorder.onstop = async () => {
+            console.log(`Recording stopped, total chunks: ${chunks.length}`)
+            
+            if (chunks.length === 0) {
+              console.error('No data chunks recorded')
+              resolve(null)
+              return
+            }
+            
             const blob = new Blob(chunks, { type: mimeType })
+            console.log(`Created blob of size: ${blob.size}`)
+            
+            if (blob.size === 0) {
+              console.error('Blob is empty')
+              resolve(null)
+              return
+            }
             
             // Convert blob to base64
             const reader = new FileReader()
             reader.onloadend = () => {
-              const base64 = (reader.result as string).split(',')[1]
+              const result = reader.result as string
+              if (!result || !result.includes(',')) {
+                console.error('Invalid FileReader result')
+                resolve(null)
+                return
+              }
+              const base64 = result.split(',')[1]
+              console.log(`Converted to base64, length: ${base64.length}`)
               resolve({ base64, mimeType: mimeType.split(';')[0] })
             }
-            reader.onerror = () => resolve(null)
+            reader.onerror = (err) => {
+              console.error('FileReader error:', err)
+              resolve(null)
+            }
             reader.readAsDataURL(blob)
           }
 
-          mediaRecorder.onerror = () => resolve(null)
+          mediaRecorder.onerror = (event) => {
+            console.error('MediaRecorder error:', event)
+            resolve(null)
+          }
 
-          // Start recording
-          mediaRecorder.start()
+          // Start recording with timeslice to get data periodically
+          mediaRecorder.start(1000) // Get data every 1 second
+          console.log('MediaRecorder started')
 
           // Stop after specified duration
           setTimeout(() => {
             if (mediaRecorder.state === 'recording') {
+              console.log('Stopping MediaRecorder after duration')
               mediaRecorder.stop()
             }
           }, durationMs)
