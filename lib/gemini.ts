@@ -84,6 +84,9 @@ Analyze the video carefully and identify ANY safety violations you observe. For 
 IMPORTANT:
 - Be thorough and identify ALL potential violations
 - Only report violations you can clearly see in the video
+- If the SAME violation type occurs multiple times in the video, report ONLY the MOST SIGNIFICANT instance (the one that is most clearly visible, most severe, or poses the greatest risk) - do NOT report the first occurrence, report the WORST/MOST SIGNIFICANT occurrence
+- Each unique violation type should appear only once in your results, at its most significant timestamp
+- The timestamp you return should be the one with where the violation is most clearly visible. It shouldn't be the start of the violation, but when it is the MOST apparent (1-2 seconds after the start of the violation)
 - If no violations are found, return an empty array
 - Return ONLY valid JSON, no additional text
 
