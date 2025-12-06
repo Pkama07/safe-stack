@@ -49,33 +49,39 @@ export default function Home() {
     }
   }, [])
 
-  // Analyze video chunks from all cameras
+  // Analyze video chunks from all cameras in parallel
   const analyzeVideoChunks = useCallback(async () => {
     if (isAnalyzingRef.current || !cameraGridRef.current) return
     isAnalyzingRef.current = true
 
     try {
+      console.log(`Starting parallel video analysis for ${cameras.length} cameras (${CHUNK_DURATION_MS}ms chunks)...`)
+
       // Set all cameras to analyzing status
       setCameras(prev => prev.map(c => ({ ...c, status: 'analyzing' as const })))
 
-      // Capture 5-second video chunks from all cameras sequentially
-      console.log(`Capturing ${CHUNK_DURATION_MS}ms video chunks from all ${cameras.length} cameras...`)
-      const chunks = await cameraGridRef.current.captureAllVideoChunks(CHUNK_DURATION_MS)
-      console.log(`Successfully captured ${chunks.length}/${cameras.length} video chunks`)
-      
-      if (chunks.length === 0) {
-        console.error('No video chunks were captured! Check browser console for errors.')
-        setCameras(prev => prev.map(c => ({ ...c, status: 'idle' as const })))
-        return
-      }
-
-      // Analyze each video chunk
-      for (const { cameraId, chunk } of chunks) {
-        const camera = cameras.find(c => c.id === cameraId)
-        if (!camera) continue
+      // Process all cameras in parallel
+      await Promise.all(cameras.map(async (camera) => {
+        const cameraId = camera.id
 
         try {
-          console.log(`Analyzing video chunk from camera ${cameraId}...`)
+          // Capture 5-second video chunk from this camera
+          console.log(`[Camera ${cameraId}] Capturing ${CHUNK_DURATION_MS}ms video chunk...`)
+          const chunk = await cameraGridRef.current!.captureVideoChunk(cameraId, CHUNK_DURATION_MS)
+
+          if (!chunk) {
+            console.error(`[Camera ${cameraId}] Failed to capture video chunk`)
+            setCameras(prev =>
+              prev.map(c =>
+                c.id === cameraId ? { ...c, status: 'idle' as const } : c
+              )
+            )
+            return
+          }
+
+          console.log(`[Camera ${cameraId}] Chunk captured, sending to backend for analysis...`)
+
+          // Send to backend for analysis
           const response = await fetch('/api/analyze-video', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -87,7 +93,7 @@ export default function Home() {
 
           if (response.ok) {
             const result = await response.json()
-            console.log(`Camera ${cameraId} analysis result:`, result)
+            console.log(`[Camera ${cameraId}] Analysis result:`, result)
 
             // Update camera status based on violations found
             if (result.alerts_created > 0) {
@@ -104,7 +110,7 @@ export default function Home() {
               )
             }
           } else {
-            console.error(`Error response from analyze-video for camera ${cameraId}`)
+            console.error(`[Camera ${cameraId}] Error response from analyze-video`)
             setCameras(prev =>
               prev.map(c =>
                 c.id === cameraId ? { ...c, status: 'idle' as const } : c
@@ -112,36 +118,54 @@ export default function Home() {
             )
           }
         } catch (err) {
-          console.error(`Error analyzing camera ${cameraId}:`, err)
+          console.error(`[Camera ${cameraId}] Error:`, err)
           setCameras(prev =>
             prev.map(c =>
               c.id === cameraId ? { ...c, status: 'idle' as const } : c
             )
           )
         }
-      }
+      }))
 
-      // Refresh alerts after analysis
+      // Refresh alerts after all cameras complete
       await fetchAlerts()
+      console.log('Video analysis cycle complete for all cameras')
     } finally {
       isAnalyzingRef.current = false
     }
   }, [cameras, fetchAlerts])
 
-  // Run video chunk analysis - capture 5s per camera (sequential), then analyze, then repeat
+  // Run video chunk analysis - only on true page refresh, not on navigation back
   useEffect(() => {
-    // Start analysis immediately (small delay just to let component mount)
-    const initialTimer = setTimeout(() => {
-      analyzeVideoChunks()
-    }, 1000)
+    const analysisStarted = sessionStorage.getItem('analysisStarted')
+    
+    let initialTimer: NodeJS.Timeout | null = null
+    let interval: NodeJS.Timeout | null = null
 
-    // Run analysis loop every 2 seconds
-    // isAnalyzingRef prevents overlapping runs
-    const interval = setInterval(analyzeVideoChunks, 2000) // 2 seconds between analysis cycles
+    if (!analysisStarted) {
+      // True refresh or first visit - start analysis
+      sessionStorage.setItem('analysisStarted', 'true')
+      
+      // Small delay to let videos load
+      initialTimer = setTimeout(() => {
+        analyzeVideoChunks()
+      }, 5000)
+
+      // Run analysis loop every 60 seconds
+      interval = setInterval(analyzeVideoChunks, 60000)
+    }
+    // If flag exists, we navigated back - just show existing alerts (fetched separately)
+
+    // Clear flag on true refresh/close so next refresh starts fresh
+    const handleBeforeUnload = () => {
+      sessionStorage.removeItem('analysisStarted')
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
-      clearTimeout(initialTimer)
-      clearInterval(interval)
+      if (initialTimer) clearTimeout(initialTimer)
+      if (interval) clearInterval(interval)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, [analyzeVideoChunks])
 
