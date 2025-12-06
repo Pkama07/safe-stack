@@ -30,8 +30,8 @@ from google import genai
 from pydantic import BaseModel
 from requests_aws4auth import AWS4Auth
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env.local file
+load_dotenv(Path(__file__).parent.parent / ".env.local")
 
 # Configure Resend API key from environment variable
 resend.api_key = os.getenv("RESEND_API_KEY", "")
