@@ -34,7 +34,7 @@ export default function Home() {
   // Duration for video chunk capture (5 seconds)
   const CHUNK_DURATION_MS = 5000
   const CHUNK_INTERVAL_MS = 15000
-  const MAX_PARALLEL_UPLOADS = 3
+  const MAX_PARALLEL_UPLOADS = Number.POSITIVE_INFINITY
   const UPLOAD_TIMEOUT_MS = 120000
 
   type ChunkJob = {
