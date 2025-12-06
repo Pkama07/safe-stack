@@ -15,7 +15,7 @@ const mockCameras: Camera[] = [
   { id: '1', name: 'Loading Dock B - Cam 1', location: 'Loading Dock B', status: 'idle', streamUrl: 'https://ksbfdhccpkfycuyngwhv.supabase.co/storage/v1/object/public/uploads-bucket/Video_Generation_Regular_Operations_to_Oil_Spill.mp4' },
   { id: '2', name: 'Loading Dock B - Cam 2', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam2.mp4' },
   { id: '3', name: 'Loading Dock B - Cam 3', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam3.mp4' },
-  { id: '4', name: 'Loading Dock B - Cam 4', location: 'Loading Dock B', status: 'analyzing', streamUrl: '/videos/cam4.mp4' },
+  { id: '4', name: 'Loading Dock B - Cam 4', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam4.mp4' },
   { id: '5', name: 'Loading Dock B - Cam 5', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam5.mp4' },
   { id: '6', name: 'Loading Dock B - Cam 6', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam6.mp4' },
 ]
