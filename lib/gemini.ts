@@ -10,11 +10,11 @@ Violation detected: {POLICY_NAME}
 Description: {DESCRIPTION}
 Reasoning: {REASONING}
 
-Edit this image to show how the scene SHOULD look with proper safety compliance:
-- Remove or correct the safety hazard to show the compliant state
-- If items are misplaced, show them properly stored or positioned
-- If PPE is missing, show the person wearing appropriate safety equipment
-- If hazards are present, show them properly guarded, cleaned, or resolved
+How to fix: {FIX}
+
+Edit this image to show how the scene SHOULD look after applying the fix above:
+- Apply the specific fix described to correct the safety hazard
+- Show the compliant, safe state as if the fix has been implemented
 - Keep the overall scene, setting, and context identical
 - The result should be a realistic visualization of a safe, compliant workplace`
 
@@ -26,6 +26,7 @@ export async function highlightViolation(
     .replace('{POLICY_NAME}', violation.policy_name)
     .replace('{DESCRIPTION}', violation.description)
     .replace('{REASONING}', violation.reasoning)
+    .replace('{FIX}', violation.fix)
 
   try {
     const response = await ai.models.generateContent({
@@ -81,6 +82,7 @@ Analyze the video carefully and identify ANY safety violations you observe. For 
 - severity: The severity level exactly as shown in brackets in the policy (must be one of: "Severity 1", "Severity 2", or "Severity 3")
 - description: What you observed in the video
 - reasoning: Why this constitutes a violation of the specific policy
+- fix: A specific, actionable instruction on how to fix this violation (e.g., "Move the boxes off the walkway and store them on the designated shelf")
 
 IMPORTANT:
 - Be thorough and identify ALL potential violations
@@ -98,7 +100,8 @@ Return your analysis as a JSON array of violations:
     "policy_name": "Poor Housekeeping and Walking-Working Surfaces",
     "severity": "Severity 1",
     "description": "Tools and materials scattered across walkway",
-    "reasoning": "This creates slip, trip, and fall hazards as per OSHA guidelines"
+    "reasoning": "This creates slip, trip, and fall hazards as per OSHA guidelines",
+    "fix": "Clear the walkway by moving tools to the designated tool storage area and materials to the proper staging zone"
   }
 ]`
 
@@ -162,9 +165,10 @@ ${policies}
 Analyze this frame and identify ANY safety violations visible. The current timestamp is ${currentTimestamp}.
 
 Return your analysis as a JSON array (empty array if no violations):
-[{"timestamp": "${currentTimestamp}", "policy_name": "...", "severity": "Severity 1", "description": "...", "reasoning": "..."}]
+[{"timestamp": "${currentTimestamp}", "policy_name": "...", "severity": "Severity 1", "description": "...", "reasoning": "...", "fix": "Specific action to correct this violation"}]
 
 Severity must be exactly one of: "Severity 1", "Severity 2", or "Severity 3"
+The fix should be a specific, actionable instruction on how to correct the violation.
 
 Return ONLY valid JSON.`
 
