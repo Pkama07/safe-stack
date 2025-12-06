@@ -25,12 +25,42 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
 
   const cameraGridRef = useRef<CameraGridRef>(null)
-  const isAnalyzingRef = useRef(false)
-  const analyzeVideoChunksRef = useRef<() => Promise<void>>(async () => {})
-  const timeoutScheduledRef = useRef(false)
+  const camerasRef = useRef<Camera[]>(initialCameras)
+  const queueRef = useRef<ChunkJob[]>([])
+  const activeUploadsRef = useRef(0)
+  const chunkCountersRef = useRef<Record<string, number>>({})
+  const captureInProgressRef = useRef(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Duration for video chunk capture (5 seconds)
   const CHUNK_DURATION_MS = 5000
+  const CHUNK_INTERVAL_MS = 15000
+  const MAX_PARALLEL_UPLOADS = 3
+  const UPLOAD_TIMEOUT_MS = 120000
+
+  type ChunkJob = {
+    cameraId: string
+    base64: string
+    mimeType: string
+    chunkIndex: number
+    startedAt: number
+    durationMs: number
+  }
+
+  const base64ToBlob = (base64Data: string, mimeType: string) => {
+    const byteCharacters = atob(base64Data)
+    const byteNumbers = new Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    const byteArray = new Uint8Array(byteNumbers)
+    return new Blob([byteArray], { type: mimeType })
+  }
+
+  // Keep camera ref updated for async callbacks
+  useEffect(() => {
+    camerasRef.current = cameras
+  }, [cameras])
 
   // Fetch alerts from the backend
   const fetchAlerts = useCallback(async () => {
@@ -51,143 +81,148 @@ export default function Home() {
     }
   }, [])
 
+  const drainQueue = useCallback(() => {
+    const startUpload = (job: ChunkJob) => {
+      activeUploadsRef.current += 1
+
+      const formData = new FormData()
+      const blob = base64ToBlob(job.base64, job.mimeType)
+      const filename = `camera-${job.cameraId}-chunk-${job.chunkIndex}.${job.mimeType.includes('mp4') ? 'mp4' : 'webm'}`
+      formData.append('video', blob, filename)
+      formData.append('mime_type', job.mimeType)
+      formData.append('camera_id', job.cameraId)
+      formData.append('chunk_index', String(job.chunkIndex))
+      formData.append('chunk_started_at', new Date(job.startedAt).toISOString())
+      formData.append('chunk_duration_ms', String(job.durationMs))
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS)
+
+      fetch('/api/analyze-video', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}))
+            throw new Error(payload.error || `Upload failed with status ${response.status}`)
+          }
+
+          const result = await response.json()
+
+          if (result.alerts_created > 0) {
+            setCameras((prev) =>
+              prev.map((c) => (c.id === job.cameraId ? { ...c, status: 'alert' as const } : c))
+            )
+            await fetchAlerts()
+          } else {
+            setCameras((prev) =>
+              prev.map((c) => (c.id === job.cameraId ? { ...c, status: 'idle' as const } : c))
+            )
+          }
+        })
+        .catch((err) => {
+          console.error(`[Camera ${job.cameraId}] upload error:`, err)
+          setError(err.message)
+          setCameras((prev) =>
+            prev.map((c) => (c.id === job.cameraId ? { ...c, status: 'idle' as const } : c))
+          )
+        })
+        .finally(() => {
+          clearTimeout(timeout)
+          activeUploadsRef.current -= 1
+          if (activeUploadsRef.current < 0) activeUploadsRef.current = 0
+          // Kick off next queued uploads, if any
+          if (queueRef.current.length > 0) {
+            drainQueue()
+          }
+        })
+    }
+
+    while (activeUploadsRef.current < MAX_PARALLEL_UPLOADS && queueRef.current.length > 0) {
+      const nextJob = queueRef.current.shift()
+      if (nextJob) {
+        startUpload(nextJob)
+      }
+    }
+  }, [fetchAlerts])
+
+  const enqueueJob = useCallback(
+    (job: ChunkJob) => {
+      queueRef.current.push(job)
+      drainQueue()
+    },
+    [drainQueue]
+  )
+
   // Analyze video chunks from all cameras in parallel
-  const analyzeVideoChunks = useCallback(async () => {
-    if (isAnalyzingRef.current || !cameraGridRef.current) return
-    isAnalyzingRef.current = true
+  const captureChunkCycle = useCallback(async () => {
+    if (captureInProgressRef.current || !cameraGridRef.current) return
+    captureInProgressRef.current = true
+
+    const captureStartedAt = Date.now()
 
     try {
-      console.log(`Starting parallel video analysis for ${cameras.length} cameras (${CHUNK_DURATION_MS}ms chunks)...`)
+      console.log(`Capturing parallel video chunks for ${camerasRef.current.length} cameras (${CHUNK_DURATION_MS}ms each)`)
+      setCameras((prev) => prev.map((c) => ({ ...c, status: 'analyzing' as const })))
 
-      // Set all cameras to analyzing status
-      setCameras(prev => prev.map(c => ({ ...c, status: 'analyzing' as const })))
+      await Promise.all(
+        camerasRef.current.map(async (camera) => {
+          const cameraId = camera.id
 
-      // Process all cameras in parallel
-      await Promise.all(cameras.map(async (camera) => {
-        const cameraId = camera.id
+          try {
+            const chunk = await cameraGridRef.current!.captureVideoChunk(cameraId, CHUNK_DURATION_MS)
 
-        try {
-          // Capture 5-second video chunk from this camera
-          console.log(`[Camera ${cameraId}] Capturing ${CHUNK_DURATION_MS}ms video chunk...`)
-          const chunk = await cameraGridRef.current!.captureVideoChunk(cameraId, CHUNK_DURATION_MS)
-
-          if (!chunk) {
-            console.error(`[Camera ${cameraId}] Failed to capture video chunk`)
-            setCameras(prev =>
-              prev.map(c =>
-                c.id === cameraId ? { ...c, status: 'idle' as const } : c
+            if (!chunk) {
+              console.error(`[Camera ${cameraId}] Failed to capture video chunk`)
+              setCameras((prev) =>
+                prev.map((c) => (c.id === cameraId ? { ...c, status: 'idle' as const } : c))
               )
-            )
-            return
-          }
-
-          console.log(`[Camera ${cameraId}] Chunk captured, sending to backend for analysis...`)
-
-          // Send to backend for analysis
-          const response = await fetch('/api/analyze-video', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              video_base64: chunk.base64,
-              mime_type: chunk.mimeType,
-            }),
-          })
-
-          if (response.ok) {
-            const result = await response.json()
-            console.log(`[Camera ${cameraId}] Analysis result:`, result)
-
-            // Update camera status based on violations found
-            if (result.alerts_created > 0) {
-              setCameras(prev =>
-                prev.map(c =>
-                  c.id === cameraId ? { ...c, status: 'alert' as const } : c
-                )
-              )
-            } else {
-              setCameras(prev =>
-                prev.map(c =>
-                  c.id === cameraId ? { ...c, status: 'idle' as const } : c
-                )
-              )
+              return
             }
-          } else {
-            console.error(`[Camera ${cameraId}] Error response from analyze-video`)
-            setCameras(prev =>
-              prev.map(c =>
-                c.id === cameraId ? { ...c, status: 'idle' as const } : c
-              )
+
+            const chunkIndex = (chunkCountersRef.current[cameraId] || 0) + 1
+            chunkCountersRef.current[cameraId] = chunkIndex
+
+            enqueueJob({
+              cameraId,
+              base64: chunk.base64,
+              mimeType: chunk.mimeType,
+              chunkIndex,
+              startedAt: captureStartedAt,
+              durationMs: CHUNK_DURATION_MS,
+            })
+          } catch (err) {
+            console.error(`[Camera ${cameraId}] Error:`, err)
+            setCameras((prev) =>
+              prev.map((c) => (c.id === cameraId ? { ...c, status: 'idle' as const } : c))
             )
           }
-        } catch (err) {
-          console.error(`[Camera ${cameraId}] Error:`, err)
-          setCameras(prev =>
-            prev.map(c =>
-              c.id === cameraId ? { ...c, status: 'idle' as const } : c
-            )
-          )
-        }
-      }))
+        })
+      )
 
-      // Refresh alerts after all cameras complete
-      await fetchAlerts()
-      console.log('Video analysis cycle complete for all cameras')
+      console.log('Chunk capture complete, queued uploads:', queueRef.current.length)
     } finally {
-      isAnalyzingRef.current = false
+      captureInProgressRef.current = false
     }
-  }, [cameras, fetchAlerts])
+  }, [enqueueJob])
 
-  // Keep ref updated with latest analyzeVideoChunks function
+  // Start recurring capture cycle
   useEffect(() => {
-    analyzeVideoChunksRef.current = analyzeVideoChunks
-  }, [analyzeVideoChunks])
-
-  // Run video chunk analysis - only on true page refresh, not on navigation back
-  // Empty dependency array ensures this only runs once on mount
-  useEffect(() => {
-    console.log('useEffect analyzeVideoChunks - mount')
-    const analysisStarted = sessionStorage.getItem('analysisStarted')
-    
-    let initialTimer: NodeJS.Timeout | null = null
-    let interval: NodeJS.Timeout | null = null
-
-    // Use ref to prevent double-scheduling in Strict Mode
-    if (!analysisStarted && !timeoutScheduledRef.current) {
-      timeoutScheduledRef.current = true
-      
-      // Small delay to let videos load
-      console.log('Setting timeout')
-      
-      initialTimer = setTimeout(() => {
-        console.log('Analyzing video chunks - timeout fired')
-        // Set sessionStorage only after timeout fires (prevents Strict Mode issues)
-        sessionStorage.setItem('analysisStarted', 'true')
-        // Use ref to call latest version of the function
-        analyzeVideoChunksRef.current()
-      }, 5000)
-
-      // Run analysis loop every 60 seconds
-      // interval = setInterval(() => analyzeVideoChunksRef.current(), 60000)
-    } else {
-      console.log('Skipping timeout - analysisStarted:', analysisStarted, 'timeoutScheduled:', timeoutScheduledRef.current)
-    }
-    // If flag exists, we navigated back - just show existing alerts (fetched separately)
-
-    // Clear flag on true refresh/close so next refresh starts fresh
-    const handleBeforeUnload = () => {
-      sessionStorage.removeItem('analysisStarted')
-      timeoutScheduledRef.current = false
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
+    // Small delay to let videos load
+    const startTimer = setTimeout(() => {
+      captureChunkCycle()
+      intervalRef.current = setInterval(captureChunkCycle, CHUNK_INTERVAL_MS)
+    }, 3000)
 
     return () => {
-      // Don't clear the timeout - let it run even through Strict Mode remount
-      // The ref prevents double-scheduling
-      if (interval) clearInterval(interval)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
+      clearTimeout(startTimer)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Empty deps - only run on mount
+  }, [captureChunkCycle])
 
   // Fetch alerts on mount and periodically
   useEffect(() => {
@@ -214,8 +249,7 @@ export default function Home() {
   }
 
   const handleQuickAnalysis = async () => {
-    // Trigger immediate video chunk analysis
-    await analyzeVideoChunks()
+    await captureChunkCycle()
   }
 
   return (

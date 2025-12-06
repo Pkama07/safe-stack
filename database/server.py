@@ -8,6 +8,7 @@ Run with: uvicorn server:app --reload
 Or: python server.py
 """
 
+import asyncio
 import base64
 import json
 import os
@@ -22,10 +23,17 @@ from typing import Optional
 
 import cv2
 import httpx
-import requests
 import resend
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import (
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from pydantic import BaseModel, model_validator
@@ -1160,32 +1168,65 @@ def delete_video(video_id: int):
 
 
 @app.post("/analyze-video-full")
-async def analyze_video_full(request: VideoAnalysisRequest):
+async def analyze_video_full(
+    request: Request,
+    video: Optional[UploadFile] = File(None),
+    video_base64_form: Optional[str] = Form(None),
+    video_url_form: Optional[str] = Form(None),
+    mime_type_form: Optional[str] = Form(None),
+    camera_id: Optional[str] = Form(None),
+    chunk_index: Optional[int] = Form(None),
+    chunk_started_at: Optional[str] = Form(None),
+    chunk_duration_ms: Optional[int] = Form(None),
+):
     """
-    Analyze a video for safety violations and create alerts.
+    Analyze a video chunk for safety violations and create alerts.
 
-    This endpoint accepts either a video_url to download from OR video_base64 data directly.
-
-    This endpoint:
-    1. Downloads the video from the provided URL OR decodes base64 video data
-    2. Creates a video record in the database
-    3. Analyzes the video with Gemini for safety violations
-    4. For each violation:
-       - Extracts the frame at the violation timestamp
-       - Highlights the violation using Nano Banana
-       - Uploads the highlighted image to Supabase storage
-       - Creates an alert record in the database
-       - Sends an email notification
-    5. Returns a summary of violations found and alerts created
+    Accepts either:
+    - multipart/form-data with a binary file field named "video"
+    - JSON body with video_base64 or video_url
     """
     temp_video_path = None
+    video_bytes: Optional[bytes] = None
+    video_base64: Optional[str] = video_base64_form
+    video_url: Optional[str] = video_url_form
+    mime_type = mime_type_form or "video/webm"
+    ext = ".webm"
+
+    # Accept JSON bodies in addition to multipart form-data
+    try:
+        if request.headers.get("content-type", "").startswith("application/json"):
+            data = await request.json()
+            video_base64 = data.get("video_base64", video_base64)
+            video_url = data.get("video_url", video_url)
+            mime_type = data.get("mime_type", mime_type)
+            camera_id = data.get("camera_id", camera_id)
+            chunk_index = data.get("chunk_index", chunk_index)
+            chunk_started_at = data.get("chunk_started_at", chunk_started_at)
+            chunk_duration_ms = data.get("chunk_duration_ms", chunk_duration_ms)
+    except Exception:
+        # Fall back to form parsing only
+        pass
 
     try:
-        # Step 1: Get video data - either from URL or base64
-        if request.video_base64:
-            # Decode base64 video directly to temp file
-            mime_type = request.mime_type or "video/webm"
-            ext = ".webm"
+        # Step 1: Get video data - either uploaded file, URL, or base64
+        if video is not None:
+            file_bytes = await video.read()
+            if not file_bytes:
+                raise HTTPException(
+                    status_code=400, detail="Uploaded video file is empty"
+                )
+
+            video_bytes = file_bytes
+            ext = Path(video.filename or "").suffix or ext
+            mime_type = mime_type_form or video.content_type or mime_type
+
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+            temp_file.write(file_bytes)
+            temp_file.close()
+            temp_video_path = temp_file.name
+        elif video_base64:
+            mime_type = mime_type or "video/webm"
             if "mp4" in mime_type:
                 ext = ".mp4"
             elif "quicktime" in mime_type or "mov" in mime_type:
@@ -1193,40 +1234,46 @@ async def analyze_video_full(request: VideoAnalysisRequest):
             elif "avi" in mime_type:
                 ext = ".avi"
 
-            video_bytes = base64.b64decode(request.video_base64)
+            video_bytes = base64.b64decode(video_base64)
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
             temp_file.write(video_bytes)
             temp_file.close()
             temp_video_path = temp_file.name
-        else:
-            # Download video from URL
+        elif video_url:
             async with httpx.AsyncClient() as client:
-                response = await client.get(request.video_url, follow_redirects=True)
+                response = await client.get(video_url, follow_redirects=True)
                 if response.status_code != 200:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Failed to download video: {response.status_code}",
                     )
 
-                # Determine file extension from content type or URL
-                content_type = response.headers.get("content-type", "video/mp4")
-                ext = ".mp4"
+                content_type = response.headers.get("content-type", mime_type)
                 if "webm" in content_type:
                     ext = ".webm"
                 elif "quicktime" in content_type or "mov" in content_type:
                     ext = ".mov"
                 elif "avi" in content_type:
                     ext = ".avi"
+                else:
+                    ext = ".mp4"
 
-                # Save to temp file
+                mime_type = mime_type_form or content_type or "video/mp4"
+
                 temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
                 temp_file.write(response.content)
                 temp_file.close()
                 temp_video_path = temp_file.name
+                video_bytes = response.content
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Either video_url, video_base64, or a video file is required",
+            )
 
         # Step 2: Create video record in database
         conn = get_db()
-        video_source = request.video_url or "base64_upload"
+        video_source = video_url or f"chunk:{camera_id or 'upload'}:{chunk_index or 0}"
         cursor = conn.execute(
             "INSERT INTO videos (url) VALUES (?)",
             (video_source,),
@@ -1235,22 +1282,27 @@ async def analyze_video_full(request: VideoAnalysisRequest):
         video_id = cursor.lastrowid
 
         # Step 3: Analyze video with Gemini
-        video_base64 = base64.b64encode(Path(temp_video_path).read_bytes()).decode(
-            "utf-8"
+        payload_base64 = (
+            base64.b64encode(video_bytes).decode("utf-8")
+            if video_bytes is not None
+            else base64.b64encode(Path(temp_video_path).read_bytes()).decode("utf-8")
         )
 
-        # Map extension to MIME type
         mime_type_map = {
             ".mp4": "video/mp4",
             ".webm": "video/webm",
             ".mov": "video/mov",
             ".avi": "video/x-msvideo",
         }
-        mime_type = mime_type_map.get(ext, "video/mp4")
+        mime_type = mime_type_map.get(ext, mime_type or "video/mp4")
 
-        print("sending video to gemini for analysis")
+        print(
+            f"sending video to gemini for analysis (camera={camera_id}, chunk_index={chunk_index})"
+        )
 
-        violations = analyze_video_with_gemini(video_base64, mime_type)
+        violations = await asyncio.to_thread(
+            analyze_video_with_gemini, payload_base64, mime_type
+        )
 
         print("violations found", violations)
 
@@ -1267,16 +1319,31 @@ async def analyze_video_full(request: VideoAnalysisRequest):
         # Step 4: Extract ALL frames first (before any DB writes)
         violation_frames = []
         print("extracting frames from video")
+
+        extraction_tasks = []
+        timestamps = []
         for violation in violations:
             try:
                 timestamp_seconds = parse_timestamp(violation.get("timestamp", "00:00"))
-                frame_base64 = extract_frame_at_timestamp(
-                    temp_video_path, timestamp_seconds
+                timestamps.append((violation, timestamp_seconds))
+                extraction_tasks.append(
+                    asyncio.to_thread(
+                        extract_frame_at_timestamp, temp_video_path, timestamp_seconds
+                    )
                 )
-                violation_frames.append((violation, frame_base64))
             except Exception as extract_error:
-                print(f"Error extracting frame for violation: {extract_error}")
+                print(f"Error scheduling frame extract: {extract_error}")
+
+        extracted_frames = await asyncio.gather(
+            *extraction_tasks, return_exceptions=True
+        )
+
+        for idx, frame_result in enumerate(extracted_frames):
+            violation, _ = timestamps[idx]
+            if isinstance(frame_result, Exception):
+                print(f"Error extracting frame for violation: {frame_result}")
                 continue
+            violation_frames.append((violation, frame_result))
 
         # Step 5: Process each violation - upload original frame and create alert
         created_alerts = []
@@ -1308,6 +1375,20 @@ async def analyze_video_full(request: VideoAnalysisRequest):
                 severity = violation.get("severity", "")
                 reasoning = violation.get("reasoning", "")
                 video_timestamp = violation.get("timestamp", "")
+
+                # Basic deduplication: skip if we've already created this alert for the same video/timestamp/policy
+                existing_alert = conn.execute(
+                    """
+                    SELECT id FROM alerts 
+                    WHERE policy_id = ? AND video_id = ? AND video_timestamp = ?
+                    """,
+                    (policy_id, video_id, video_timestamp),
+                ).fetchone()
+                if existing_alert:
+                    print(
+                        f"Skipping duplicate alert for policy {policy_name} at {video_timestamp}"
+                    )
+                    continue
 
                 cursor = conn.execute(
                     """
@@ -1371,6 +1452,8 @@ Description: {explanation}
 Reasoning: {reasoning}
 
 Video URL: {video_source}
+Chunk Index: {chunk_index}
+Camera: {camera_id}
                         """.strip()
 
                         # Use amended image in email if available, otherwise use original
