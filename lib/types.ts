@@ -4,6 +4,7 @@ export interface Violation {
   severity: 'Severity 1' | 'Severity 2' | 'Severity 3'
   description: string
   reasoning: string
+  fix: string
 }
 
 export function getSeverityColor(severity: string): string {
