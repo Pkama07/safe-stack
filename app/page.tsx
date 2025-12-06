@@ -9,14 +9,15 @@ import { Alert } from '@/components/AlertCard'
 import DailyAlerts from '@/components/DailyAlerts'
 import QuickLinks from '@/components/QuickLinks'
 
-// Mock data for cameras
+// Camera configurations with video stream URLs
+// Place video files in public/videos/ (e.g., cam1.mp4, cam2.mp4)
 const mockCameras: Camera[] = [
-  { id: '1', name: 'Loading Dock B - Cam 1', location: 'Loading Dock B', status: 'idle' },
-  { id: '2', name: 'Loading Dock B - Cam 2', location: 'Loading Dock B', status: 'idle' },
-  { id: '3', name: 'Loading Dock B - Cam 2', location: 'Loading Dock B', status: 'idle' },
-  { id: '4', name: 'Loading Dock B - Cam 3', location: 'Loading Dock B', status: 'analyzing' },
-  { id: '5', name: 'Loading Dock B - Cam 3', location: 'Loading Dock B', status: 'idle' },
-  { id: '6', name: 'Loading Dock B - Cam 3', location: 'Loading Dock B', status: 'idle' },
+  { id: '1', name: 'Loading Dock B - Cam 1', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam1.mp4' },
+  { id: '2', name: 'Loading Dock B - Cam 2', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam2.mp4' },
+  { id: '3', name: 'Loading Dock B - Cam 3', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam3.mp4' },
+  { id: '4', name: 'Loading Dock B - Cam 4', location: 'Loading Dock B', status: 'analyzing', streamUrl: '/videos/cam4.mp4' },
+  { id: '5', name: 'Loading Dock B - Cam 5', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam5.mp4' },
+  { id: '6', name: 'Loading Dock B - Cam 6', location: 'Loading Dock B', status: 'idle', streamUrl: '/videos/cam6.mp4' },
 ]
 
 // Mock data for alerts
