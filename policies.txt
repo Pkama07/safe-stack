@@ -1,0 +1,119 @@
+L5: Poor Housekeeping and Walking-Working Surfaces
+
+Description: Accumulation of trash, tools, cords, or materials in aisles, walkways, or work areas that creates slip, trip, and fall hazards, including failure to promptly clean spills or repair obvious floor defects (e.g., broken stair rails, loose mats, uneven surfaces).
+
+L5: Blocked Exits and Emergency Equipment
+
+Description: Storing materials in front of emergency exits, exit routes, electrical panels, fire extinguishers, eyewash stations, or other emergency equipment so that access is restricted or visibility is blocked, e.g., “Pallets stored in front of the fire exit door.”
+
+L5: Unsafe Storage and Pallet Stacking
+
+Description: Stacking pallets or materials in an unstable manner (leaning, mixed or broken pallets, irregular stacks), or above posted/rated capacities, where loads could shift or fall even if no immediate collapse is occurring, e.g., “Pallets stacked to the ceiling, visibly leaning.”
+
+L5: Substandard Ladder Setup and Use
+
+Description: Use of portable ladders that are not set up on stable surfaces or at the correct angle, minor overreaching from ladders, or standing on the top cap/step of a step ladder without immediate exposure to a fall over 6 feet, e.g., “Worker standing on top step of step ladder to reach a box.”
+
+L5: Inadequate Hazard Communication
+
+Description: Missing or incomplete labels on chemical containers, lack of readily accessible Safety Data Sheets (SDSs), or employees unable to explain basic hazards of chemicals they routinely use, where hazardous exposure is possible but not yet occurring, e.g., “Unlabeled spray bottle with solvent in the shop.”
+
+L5: Inadequate Personal Protective Equipment (PPE) Use
+
+Description: Failure to wear required basic PPE (e.g., safety glasses, gloves, hearing protection) in posted areas where hazards exist, but without immediate life-threatening exposure, e.g., “Employees grinding without face shield in area where guards and ventilation exist.”
+
+L5: Minor Electrical Hazards
+
+Description: Use of damaged extension cords, daisy-chained power strips, extension cords used as permanent wiring, or cords routed across walkways without protection, where live parts are not directly exposed but fire or trip risks are present.
+
+L5: Unsafe Work Practices and Shortcuts
+
+Description: Repeated minor unsafe practices that increase risk over time, such as bypassing minor administrative procedures, failing to use handrails on stairs, or routinely leaving small spills uncleaned, indicating a pattern that can lead to more serious incidents.
+
+---
+
+L6: Unprotected Work at Height ≤6 ft or Above Lower Levels
+
+Description: Work on platforms, mezzanines, roofs, or open-sided floors at or slightly above lower levels without adequate fall protection (guardrails, covers, or personal fall arrest) where a fall can cause serious injury but is not yet clearly in the highest-risk category (e.g., short unprotected edges, low mezzanine with cluttered lower level).
+
+L6: Improper Ladder Use with Significant Fall Risk
+
+Description: Use of ladders on unstable surfaces, near edges, or in ways that could lead to falls from heights where serious injuries are likely, such as leaning extension ladders on non-secured points, using metal ladders near energized equipment, or climbing with hands full.
+
+L6: Machine Guarding Deficiencies (Point-of-Operation Accessible)
+
+Description: Missing, disabled, or improperly adjusted machine guards that allow hands or other body parts to reach points of operation, ingoing nip points, or rotating parts during normal use, but where the machine can still be locked out or taken out of service before use, e.g., “Press running with interlock taped over.”
+
+L6: Incomplete Lockout/Tagout During Servicing
+
+Description: Servicing, maintenance, or clearing jams where some but not all energy sources are controlled, written procedures are missing or incomplete, or lockout/tagout devices are inconsistently applied, creating a strong possibility of unexpected startup or release of stored energy, e.g., “Clearing jam on conveyor with only e-stop pressed.”
+
+L6: Powered Industrial Truck (PIT) Unsafe Operation
+
+Description: Operation of forklifts or other powered industrial trucks by untrained or uncertified operators, or unsafe driving behaviors such as excessive speed, riding on forks, failing to sound horn at intersections, or transporting unsecured loads in occupied areas, where collision or tip-over is likely, e.g., “Forklift driving fast through blind corner in busy aisle.” 
+
+L6: Unsafe Storage, Racking, and Overloading
+
+Description: Racking systems, shelving, or storage areas that are obviously overloaded, visibly damaged, or improperly loaded (heavy items high, mixed pallets, missing beam pins) where collapse is credible but not yet occurring, e.g., “Bent rack upright supporting multiple full pallets of product.”
+
+L6: Significant Chemical Handling Violations
+
+Description: Handling hazardous chemicals (corrosives, solvents, toxic dusts) without appropriate PPE, ventilation, or containment where workers may be exposed to skin contact or inhalation at harmful levels, but no active spill or acute release is underway, e.g., “Mixing solvent in small unventilated room without respirator.”
+
+L6: Serious Electrical Exposure (Non-Qualified Work)
+
+Description: Access to energized parts by unqualified workers, use of non-rated tools or equipment around exposed conductors, or work in areas with open electrical cabinets without barriers, where shock or arc-flash is credible, e.g., “Panel cover removed with live components exposed in occupied hallway.”
+
+L6: Inadequate Emergency Preparedness and Lack of Procedures
+
+Description: Failure to establish or practice emergency procedures (fire, hazardous material release, severe weather, workplace violence) where employees do not know how to respond, creating significant risk if an emergency occurs, e.g., “No one knows evacuation routes or alarm tones in a multi-story facility.”
+
+L6: Repeated PPE Non-Use in High-Risk Areas
+
+Description: Pattern of employees failing to use required respiratory, eye/face, or hearing protection in areas with known high exposures, even after prior warnings or training, e.g., “Workers repeatedly welding without face shield where eye injury risk is high.”
+
+---
+
+L7: Unprotected Work at Height >6 ft (Fall Protection – General Requirements)
+
+Description: Employees working on roofs, leading edges, scaffolds, mezzanines, or other elevated walking-working surfaces more than 6 feet above lower levels without required fall protection systems (guardrails, safety nets, or personal fall arrest), e.g., “Crew working on roof edge 20 ft up with no harnesses or guardrails.”
+
+L7: Severe Ladder or Scaffold Violations with Imminent Fall Hazard
+
+Description: Use of ladders or scaffolds that are structurally unsound, improperly erected (missing guardrails or midrails, incomplete planking, unsecured base), or used in ways that create immediate risk of serious or fatal falls, e.g., “Worker on top of mobile scaffold with missing guardrails and unlocked wheels.”
+
+L7: Zero Lockout/Tagout During Hazardous Servicing
+
+Description: Servicing or maintaining equipment with exposed, hazardous energy sources (electrical, mechanical, hydraulic, pneumatic, chemical, thermal) where no lockout/tagout is applied and workers place body parts in danger zone, e.g., “Maintenance inside mixer while another worker can start it from the control room.”
+
+L7: Bypassed Critical Machine Guarding
+
+Description: Deliberate removal, bypass, or defeat of critical guards or interlocks on presses, saws, conveyors, or other machinery so that hands or other body parts can be in the danger zone during cycling, with the machine actively operating, e.g., “Light curtain taped over while operator reaches into running press.”
+
+L7: Confined Space Entry Without Required Protections
+
+Description: Entry into a permit-required confined space (tanks, pits, vaults, silos) without atmospheric testing, ventilation, entry permit, attendant, retrieval system, or rescue plan, especially where toxic, oxygen-deficient, or flammable atmospheres are possible, e.g., “Worker climbs into tank to clean without testing or attendant.”
+
+L7: Acute Chemical Release or High-Exposure Work Without Protection
+
+Description: Work conducted during an active chemical leak/release, or in known high-exposure tasks, without appropriate respiratory protection, PPE, or controls, where serious acute health effects are likely, e.g., “Cleaning large acid spill without respirator or chemical suit.”
+
+L7: Powered Industrial Truck / Vehicle Operations Creating Imminent Danger
+
+Description: Forklift or vehicle use that presents an immediate risk of crushing, struck-by, or tip-over incidents, such as lifting workers on bare forks, driving under suspended loads, operating near unprotected edges, or driving with obstructed view at speed in pedestrian areas, e.g., “Worker standing on forklift forks to reach high shelf while truck is moving.”
+
+L7: Blocked or Locked Emergency Exits in Occupied Areas
+
+Description: Exit doors that are locked, chained, or blocked during operations, or exit routes that are impassable, preventing rapid evacuation in fire or other emergencies, e.g., “Back exit door chained shut while workers are on shift.”
+
+L7: Critical Electrical Hazards (Energized Work Without Protection)
+
+Description: Work performed on or near exposed, energized electrical conductors or circuit parts without appropriate training, PPE, and protective boundaries, including makeshift repairs, use of conductive tools, or contact with overhead lines, e.g., “Unqualified worker repairing live panel with no PPE.”
+
+L7: Severe Ergonomic/Overexertion Conditions with Known Injuries
+
+Description: Work requiring frequent heavy lifting, extreme postures, or highly repetitive motions that has already resulted in serious musculoskeletal injuries, where controls have not been implemented and additional injuries are likely, e.g., “Workers manually lifting 80 lb boxes all day with no mechanical aids despite prior back injury claims.”
+
+L7: Serious Workplace Violence Risk
+
+Description: Credible threats, physical assaults, or known high-risk situations (e.g., prior violent incidents, unsecured public-facing operations) where no controls, training, or response plans are in place, creating immediate risk of serious harm, e.g., “Employee threatened with violence by customer; no procedures or security response in place.”
