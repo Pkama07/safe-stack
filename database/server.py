@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from supabase import create_client, Client
 
 # Load environment variables from .env.local file
@@ -493,7 +493,15 @@ class VideoCreate(BaseModel):
 
 
 class VideoAnalysisRequest(BaseModel):
-    video_url: str  # URL to download video from
+    video_url: Optional[str] = None  # URL to download video from
+    video_base64: Optional[str] = None  # Base64-encoded video data
+    mime_type: Optional[str] = "video/webm"  # MIME type for base64 video
+
+    @model_validator(mode="after")
+    def check_at_least_one_source(self):
+        if not self.video_url and not self.video_base64:
+            raise ValueError("Either video_url or video_base64 must be provided")
+        return self
 
 
 class PolicyAmendmentRequest(BaseModel):
@@ -623,13 +631,15 @@ async def analyze_frame(request: FrameAnalysisRequest):
             )
             conn.commit()
 
-            created_alerts.append({
-                "alert_id": cursor.lastrowid,
-                "policy_name": policy_name,
-                "severity": severity,
-                "description": explanation,
-                "reasoning": reasoning,
-            })
+            created_alerts.append(
+                {
+                    "alert_id": cursor.lastrowid,
+                    "policy_name": policy_name,
+                    "severity": severity,
+                    "description": explanation,
+                    "reasoning": reasoning,
+                }
+            )
 
         conn.close()
 
@@ -1062,8 +1072,10 @@ async def analyze_video_full(request: VideoAnalysisRequest):
     """
     Analyze a video for safety violations and create alerts.
 
+    This endpoint accepts either a video_url to download from OR video_base64 data directly.
+
     This endpoint:
-    1. Downloads the video from the provided URL
+    1. Downloads the video from the provided URL OR decodes base64 video data
     2. Creates a video record in the database
     3. Analyzes the video with Gemini for safety violations
     4. For each violation:
@@ -1077,36 +1089,55 @@ async def analyze_video_full(request: VideoAnalysisRequest):
     temp_video_path = None
 
     try:
-        # Step 1: Download video to temp file
-        async with httpx.AsyncClient() as client:
-            response = await client.get(request.video_url, follow_redirects=True)
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Failed to download video: {response.status_code}",
-                )
-
-            # Determine file extension from content type or URL
-            content_type = response.headers.get("content-type", "video/mp4")
-            ext = ".mp4"
-            if "webm" in content_type:
-                ext = ".webm"
-            elif "quicktime" in content_type or "mov" in content_type:
+        # Step 1: Get video data - either from URL or base64
+        if request.video_base64:
+            # Decode base64 video directly to temp file
+            mime_type = request.mime_type or "video/webm"
+            ext = ".webm"
+            if "mp4" in mime_type:
+                ext = ".mp4"
+            elif "quicktime" in mime_type or "mov" in mime_type:
                 ext = ".mov"
-            elif "avi" in content_type:
+            elif "avi" in mime_type:
                 ext = ".avi"
 
-            # Save to temp file
+            video_bytes = base64.b64decode(request.video_base64)
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-            temp_file.write(response.content)
+            temp_file.write(video_bytes)
             temp_file.close()
             temp_video_path = temp_file.name
+        else:
+            # Download video from URL
+            async with httpx.AsyncClient() as client:
+                response = await client.get(request.video_url, follow_redirects=True)
+                if response.status_code != 200:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Failed to download video: {response.status_code}",
+                    )
+
+                # Determine file extension from content type or URL
+                content_type = response.headers.get("content-type", "video/mp4")
+                ext = ".mp4"
+                if "webm" in content_type:
+                    ext = ".webm"
+                elif "quicktime" in content_type or "mov" in content_type:
+                    ext = ".mov"
+                elif "avi" in content_type:
+                    ext = ".avi"
+
+                # Save to temp file
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                temp_file.write(response.content)
+                temp_file.close()
+                temp_video_path = temp_file.name
 
         # Step 2: Create video record in database
         conn = get_db()
+        video_source = request.video_url or "base64_upload"
         cursor = conn.execute(
             "INSERT INTO videos (url) VALUES (?)",
-            (request.video_url,),
+            (video_source,),
         )
         conn.commit()
         video_id = cursor.lastrowid
@@ -1135,7 +1166,7 @@ async def analyze_video_full(request: VideoAnalysisRequest):
             conn.close()
             return {
                 "video_id": video_id,
-                "video_url": request.video_url,
+                "video_url": video_source,
                 "violations_found": 0,
                 "alerts_created": 0,
                 "alerts": [],
@@ -1247,7 +1278,7 @@ Description: {explanation}
 
 Reasoning: {reasoning}
 
-Video URL: {request.video_url}
+Video URL: {video_source}
                         """.strip()
 
                         # Use amended image in email if available, otherwise use original
@@ -1289,7 +1320,7 @@ Video URL: {request.video_url}
 
         return {
             "video_id": video_id,
-            "video_url": request.video_url,
+            "video_url": video_source,
             "violations_found": len(violations),
             "alerts_created": len(created_alerts),
             "alerts": created_alerts,

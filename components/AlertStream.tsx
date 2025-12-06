@@ -9,7 +9,7 @@ interface AlertStreamProps {
 
 export default function AlertStream({ alerts, onReviewClick }: AlertStreamProps) {
   return (
-    <div className="bg-[#0f1419] rounded-lg border border-white/10 h-full flex flex-col">
+    <div className="bg-[#0f1419] rounded-lg border border-white/10 max-h-[calc(100vh-180px)] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <h2 className="text-white font-semibold">Alert Stream</h2>

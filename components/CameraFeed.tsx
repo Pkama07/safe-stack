@@ -12,6 +12,7 @@ export interface Camera {
 
 export interface CameraFeedRef {
   captureFrame: () => string | null
+  captureVideoChunk: (durationMs: number) => Promise<{ base64: string; mimeType: string } | null>
 }
 
 interface CameraFeedProps {
@@ -22,7 +23,7 @@ interface CameraFeedProps {
 const CameraFeed = forwardRef<CameraFeedRef, CameraFeedProps>(({ camera, onClick }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  // Expose frame capture method to parent
+  // Expose frame capture and video chunk capture methods to parent
   useImperativeHandle(ref, () => ({
     captureFrame: () => {
       const video = videoRef.current
@@ -37,6 +38,62 @@ const CameraFeed = forwardRef<CameraFeedRef, CameraFeedProps>(({ camera, onClick
       ctx.drawImage(video, 0, 0)
       // Return base64 without the data URL prefix
       return canvas.toDataURL('image/jpeg', 0.8).split(',')[1]
+    },
+
+    captureVideoChunk: async (durationMs: number): Promise<{ base64: string; mimeType: string } | null> => {
+      const video = videoRef.current
+      if (!video || video.readyState < 2) return null
+
+      try {
+        // Get video stream from the video element
+        const stream = (video as HTMLVideoElement & { captureStream: () => MediaStream }).captureStream()
+        
+        // Determine supported MIME type
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+          ? 'video/webm;codecs=vp9'
+          : MediaRecorder.isTypeSupported('video/webm')
+            ? 'video/webm'
+            : 'video/mp4'
+
+        const mediaRecorder = new MediaRecorder(stream, { mimeType })
+        const chunks: Blob[] = []
+
+        return new Promise((resolve) => {
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              chunks.push(event.data)
+            }
+          }
+
+          mediaRecorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: mimeType })
+            
+            // Convert blob to base64
+            const reader = new FileReader()
+            reader.onloadend = () => {
+              const base64 = (reader.result as string).split(',')[1]
+              resolve({ base64, mimeType: mimeType.split(';')[0] })
+            }
+            reader.onerror = () => resolve(null)
+            reader.readAsDataURL(blob)
+          }
+
+          mediaRecorder.onerror = () => resolve(null)
+
+          // Start recording
+          mediaRecorder.start()
+
+          // Stop after specified duration
+          setTimeout(() => {
+            if (mediaRecorder.state === 'recording') {
+              mediaRecorder.stop()
+            }
+          }, durationMs)
+        })
+      } catch (error) {
+        console.error('Error capturing video chunk:', error)
+        return null
+      }
     }
   }))
 

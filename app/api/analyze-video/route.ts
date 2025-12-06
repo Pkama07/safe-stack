@@ -21,26 +21,45 @@ export interface AnalysisResult {
   }>
 }
 
+export interface VideoAnalysisRequest {
+  video_url?: string
+  video_base64?: string
+  mime_type?: string
+}
+
 /**
  * POST /api/analyze-video
  *
  * Analyzes a video for safety violations using the backend Gemini integration.
  *
  * Request Body (JSON):
- * - video_url (required): URL of the video to analyze
+ * - video_url (optional): URL of the video to analyze
+ * - video_base64 (optional): Base64-encoded video data
+ * - mime_type (optional): MIME type for base64 video (default: video/webm)
+ *
+ * At least one of video_url or video_base64 must be provided.
  *
  * Returns: AnalysisResult with violations found and alerts created
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { video_url } = body
+    const body: VideoAnalysisRequest = await request.json()
+    const { video_url, video_base64, mime_type } = body
 
-    if (!video_url) {
+    if (!video_url && !video_base64) {
       return NextResponse.json(
-        { error: 'video_url is required' },
+        { error: 'Either video_url or video_base64 is required' },
         { status: 400 }
       )
+    }
+
+    // Build request body for backend
+    const backendBody: VideoAnalysisRequest = {}
+    if (video_base64) {
+      backendBody.video_base64 = video_base64
+      backendBody.mime_type = mime_type || 'video/webm'
+    } else if (video_url) {
+      backendBody.video_url = video_url
     }
 
     // Call backend analyze-video-full endpoint
@@ -49,7 +68,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ video_url }),
+      body: JSON.stringify(backendBody),
     })
 
     if (!response.ok) {

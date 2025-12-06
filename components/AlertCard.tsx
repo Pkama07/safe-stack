@@ -46,7 +46,10 @@ export default function AlertCard({ alert, onReviewClick }: AlertCardProps) {
   }
 
   return (
-    <div className="bg-[#1a1f2e] rounded-lg p-4 border border-white/5">
+    <div 
+      onClick={onReviewClick}
+      className="bg-[#1a1f2e] rounded-lg p-4 border border-white/5 cursor-pointer hover:bg-[#1f2536] hover:border-white/10 transition-all"
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 text-sm flex-wrap">
@@ -60,7 +63,10 @@ export default function AlertCard({ alert, onReviewClick }: AlertCardProps) {
           <span className="text-stone-600">|</span>
           <span className={riskStyle.text}>{riskStyle.label}</span>
         </div>
-        <button className="text-stone-500 hover:text-white transition-colors">
+        <button 
+          onClick={(e) => e.stopPropagation()}
+          className="text-stone-500 hover:text-white transition-colors"
+        >
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
           </svg>
@@ -100,12 +106,12 @@ export default function AlertCard({ alert, onReviewClick }: AlertCardProps) {
       </div>
 
       {/* Action Button */}
-      <button
-        onClick={onReviewClick}
-        className="mt-3 px-4 py-2 bg-[#2a3142] hover:bg-[#353d52] text-white text-sm font-medium rounded transition-colors"
-      >
-        Review Analysis
-      </button>
+      <div className="mt-3 flex items-center text-blue-400 text-sm font-medium group">
+        <span>View Details</span>
+        <svg className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
     </div>
   )
 }

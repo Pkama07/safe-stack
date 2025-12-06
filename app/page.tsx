@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import CameraGrid, { CameraGridRef } from '@/components/CameraGrid'
 import { Camera } from '@/components/CameraFeed'
@@ -20,12 +21,16 @@ const initialCameras: Camera[] = [
 ]
 
 export default function Home() {
+  const router = useRouter()
   const [cameras, setCameras] = useState<Camera[]>(initialCameras)
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const cameraGridRef = useRef<CameraGridRef>(null)
   const isAnalyzingRef = useRef(false)
+
+  // Duration for video chunk capture (5 seconds)
+  const CHUNK_DURATION_MS = 5000
 
   // Fetch alerts from the backend
   const fetchAlerts = useCallback(async () => {
@@ -40,45 +45,69 @@ export default function Home() {
     }
   }, [])
 
-  // Analyze frames from all cameras
-  const analyzeFrames = useCallback(async () => {
+  // Analyze video chunks from all cameras
+  const analyzeVideoChunks = useCallback(async () => {
     if (isAnalyzingRef.current || !cameraGridRef.current) return
     isAnalyzingRef.current = true
 
     try {
-      // Capture frames from all cameras
-      const frames = cameraGridRef.current.captureAllFrames()
+      // Set all cameras to analyzing status
+      setCameras(prev => prev.map(c => ({ ...c, status: 'analyzing' as const })))
 
-      // Analyze each frame
-      for (const { cameraId, frame } of frames) {
+      // Capture 5-second video chunks from all cameras in parallel
+      console.log('Capturing video chunks from all cameras...')
+      const chunks = await cameraGridRef.current.captureAllVideoChunks(CHUNK_DURATION_MS)
+      console.log(`Captured ${chunks.length} video chunks`)
+
+      // Analyze each video chunk
+      for (const { cameraId, chunk } of chunks) {
         const camera = cameras.find(c => c.id === cameraId)
         if (!camera) continue
 
         try {
-          const response = await fetch('/api/analyze-frame', {
+          console.log(`Analyzing video chunk from camera ${cameraId}...`)
+          const response = await fetch('/api/analyze-video', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              frame,
-              camera_id: cameraId,
-              camera_name: camera.name,
+              video_base64: chunk.base64,
+              mime_type: chunk.mimeType,
             }),
           })
 
           if (response.ok) {
             const result = await response.json()
+            console.log(`Camera ${cameraId} analysis result:`, result)
 
-            // Update camera status if violations found
+            // Update camera status based on violations found
             if (result.alerts_created > 0) {
               setCameras(prev =>
                 prev.map(c =>
                   c.id === cameraId ? { ...c, status: 'alert' as const } : c
                 )
               )
+            } else {
+              setCameras(prev =>
+                prev.map(c =>
+                  c.id === cameraId ? { ...c, status: 'idle' as const } : c
+                )
+              )
             }
+          } else {
+            console.error(`Error response from analyze-video for camera ${cameraId}`)
+            setCameras(prev =>
+              prev.map(c =>
+                c.id === cameraId ? { ...c, status: 'idle' as const } : c
+              )
+            )
           }
         } catch (err) {
           console.error(`Error analyzing camera ${cameraId}:`, err)
+          setCameras(prev =>
+            prev.map(c =>
+              c.id === cameraId ? { ...c, status: 'idle' as const } : c
+            )
+          )
         }
       }
 
@@ -89,21 +118,22 @@ export default function Home() {
     }
   }, [cameras, fetchAlerts])
 
-  // Run frame analysis every 5 seconds
+  // Run video chunk analysis - capture 5s, then analyze, then repeat
   useEffect(() => {
     // Initial delay to let videos load
     const initialTimer = setTimeout(() => {
-      analyzeFrames()
+      analyzeVideoChunks()
     }, 3000)
 
-    // Then run every 5 seconds
-    const interval = setInterval(analyzeFrames, 5000)
+    // Run analysis loop - after each analysis completes, wait a moment then start again
+    // The interval accounts for capture time + analysis time
+    const interval = setInterval(analyzeVideoChunks, 15000) // 5s capture + ~10s for analysis
 
     return () => {
       clearTimeout(initialTimer)
       clearInterval(interval)
     }
-  }, [analyzeFrames])
+  }, [analyzeVideoChunks])
 
   // Fetch alerts on mount and periodically
   useEffect(() => {
@@ -126,10 +156,7 @@ export default function Home() {
   }
 
   const handleReviewAlert = (alert: Alert) => {
-    console.log('Review alert:', alert)
-    if (alert.image_urls && alert.image_urls.length > 0) {
-      window.open(alert.image_urls[0], '_blank')
-    }
+    router.push(`/alerts/${alert.id}`)
   }
 
   const handleGenerateReport = () => {
@@ -137,8 +164,8 @@ export default function Home() {
   }
 
   const handleQuickAnalysis = async () => {
-    // Trigger immediate analysis
-    await analyzeFrames()
+    // Trigger immediate video chunk analysis
+    await analyzeVideoChunks()
   }
 
   return (
