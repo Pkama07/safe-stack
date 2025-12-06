@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SiteSight AI | Safety Monitoring Dashboard',
+  title: 'SafeStack | Safety Monitoring Dashboard',
   description: 'Real-time AI-powered safety monitoring and violation detection',
 }
 
