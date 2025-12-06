@@ -8,81 +8,58 @@ interface DailyAlertsProps {
 }
 
 export default function DailyAlerts({ totalAlerts, highRisk, mediumRisk, lowRisk }: DailyAlertsProps) {
-  // Calculate percentages for the donut chart
-  const total = highRisk + mediumRisk + lowRisk || 1
-  const highPercent = (highRisk / total) * 100
-  const mediumPercent = (mediumRisk / total) * 100
-  const lowPercent = (lowRisk / total) * 100
-
-  // SVG donut chart calculations
-  const radius = 60
-  const circumference = 2 * Math.PI * radius
-
-  const highLength = (highPercent / 100) * circumference
-  const mediumLength = (mediumPercent / 100) * circumference
-  const lowLength = (lowPercent / 100) * circumference
+  const total = highRisk + mediumRisk + lowRisk
+  const safeTotal = total > 0 ? total : 1
+  const segments = [
+    { label: 'High', value: highRisk, color: '#ef4444' },
+    { label: 'Medium', value: mediumRisk, color: '#f97316' },
+    { label: 'Low', value: lowRisk, color: '#3b82f6' },
+  ]
 
   return (
     <div className="bg-[#0f1419] rounded-lg border border-white/10 p-4">
       <h3 className="text-white font-semibold mb-4">Daily Alerts</h3>
 
-      {/* Donut Chart */}
-      <div className="flex items-center justify-center mb-4">
+      {/* Donut */}
+      <div className="flex items-center justify-center mb-6">
         <div className="relative">
-          <svg width="160" height="160" viewBox="0 0 160 160">
-            {/* Background circle */}
+          <svg width="180" height="180" viewBox="0 0 180 180">
             <circle
-              cx="80"
-              cy="80"
-              r={radius}
+              cx="90"
+              cy="90"
+              r="70"
               fill="none"
-              stroke="#1c2230"
-              strokeWidth="20"
+              stroke="#161b27"
+              strokeWidth="18"
             />
-
-            {/* High risk (red) */}
-            <circle
-              cx="80"
-              cy="80"
-              r={radius}
-              fill="none"
-              stroke="#ef4444"
-              strokeWidth="20"
-              strokeDasharray={`${highLength} ${circumference}`}
-              strokeDashoffset={circumference * 0.25}
-              transform="rotate(-90 80 80)"
-            />
-
-            {/* Medium risk (orange) */}
-            <circle
-              cx="80"
-              cy="80"
-              r={radius}
-              fill="none"
-              stroke="#f97316"
-              strokeWidth="20"
-              strokeDasharray={`${mediumLength} ${circumference}`}
-              strokeDashoffset={circumference * 0.25 + highLength}
-              transform="rotate(-90 80 80)"
-            />
-
-            {/* Low risk (blue) */}
-            <circle
-              cx="80"
-              cy="80"
-              r={radius}
-              fill="none"
-              stroke="#3b82f6"
-              strokeWidth="20"
-              strokeDasharray={`${lowLength} ${circumference}`}
-              strokeDashoffset={circumference * 0.25 + highLength + mediumLength}
-              transform="rotate(-90 80 80)"
-            />
+            {(() => {
+              const circumference = 2 * Math.PI * 70
+              let start = 0
+              return segments.map((seg) => {
+                const length = (seg.value / safeTotal) * circumference
+                if (length <= 0) return null
+                const dasharray = `${length} ${circumference - length}`
+                const offset = circumference - start
+                start += length
+                return (
+                  <circle
+                    key={seg.label}
+                    cx="90"
+                    cy="90"
+                    r="70"
+                    fill="none"
+                    stroke={seg.color}
+                    strokeWidth="18"
+                    strokeDasharray={dasharray}
+                    strokeDashoffset={offset}
+                    transform="rotate(-90 90 90)"
+                  />
+                )
+              })
+            })()}
           </svg>
-
-          {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold text-white">{totalAlerts}</span>
+            <span className="text-4xl font-bold text-white">{totalAlerts}</span>
             <span className="text-stone-400 text-sm">Alerts</span>
           </div>
         </div>
