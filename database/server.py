@@ -28,7 +28,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from pydantic import BaseModel
-from requests_aws4auth import AWS4Auth
+from supabase import create_client, Client
 
 # Load environment variables from .env.local file
 load_dotenv(Path(__file__).parent.parent / ".env.local")
@@ -40,12 +40,13 @@ resend.api_key = os.getenv("RESEND_API_KEY", "")
 GOOGLE_CLOUD_KEY = os.getenv("GOOGLE_CLOUD_KEY", "")
 gemini_client = genai.Client(api_key=GOOGLE_CLOUD_KEY)
 
-# Configure Supabase S3 storage
-SUPABASE_S3_ACCESS_KEY = os.getenv("SUPABASE_S3_ACCESS_KEY", "")
-SUPABASE_S3_SECRET_KEY = os.getenv("SUPABASE_S3_SECRET_KEY", "")
-SUPABASE_S3_REGION = "us-west-2"
-SUPABASE_S3_ENDPOINT = "https://ksbfdhccpkfycuyngwhv.storage.supabase.co/storage/v1/s3"
-SUPABASE_S3_BUCKET = "violations"
+# Configure Supabase storage
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://ksbfdhccpkfycuyngwhv.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+SUPABASE_BUCKET = "uploads-bucket"
+
+# Initialize Supabase client
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Alert email recipient from environment variable
 ALERT_EMAIL_RECIPIENT = os.getenv("ALERT_EMAIL_RECIPIENT", "")
@@ -196,6 +197,7 @@ Analyze the video carefully and identify ANY safety violations you observe. For 
 - severity: The severity level exactly as shown in brackets in the policy (must be one of: "Severity 1", "Severity 2", or "Severity 3")
 - description: What you observed in the video
 - reasoning: Why this constitutes a violation of the specific policy
+- fix: A specific, actionable instruction on how to fix this violation (e.g., "Move the boxes off the walkway and store them on the designated shelf")
 
 IMPORTANT:
 - Be thorough and identify ALL potential violations
@@ -213,7 +215,8 @@ Return your analysis as a JSON array of violations:
     "policy_name": "Poor Housekeeping and Walking-Working Surfaces",
     "severity": "Severity 1",
     "description": "Tools and materials scattered across walkway",
-    "reasoning": "This creates slip, trip, and fall hazards as per OSHA guidelines"
+    "reasoning": "This creates slip, trip, and fall hazards as per OSHA guidelines",
+    "fix": "Clear the walkway by moving tools to the designated tool storage area and materials to the proper staging zone"
   }
 ]"""
 
@@ -289,42 +292,46 @@ Based on the user's feedback, write an improved policy description that:
 Return ONLY the updated policy description text, without any additional commentary or formatting."""
 
 
-HIGHLIGHT_PROMPT = """You are a safety inspector annotating a workplace image.
+AMENDED_IMAGE_PROMPT = """You are a safety compliance visualization expert.
 
 Violation detected: {POLICY_NAME}
 Description: {DESCRIPTION}
 Reasoning: {REASONING}
 
-Edit this image to clearly highlight the safety hazard:
-- Draw a bright red circle or rectangular outline around the hazardous area
-- Add a small warning indicator or arrow pointing to the violation
-- Keep the rest of the image unchanged and recognizable
-- Make the highlight clearly visible but not obstructive
-- The highlight should make it immediately obvious where the safety issue is"""
+How to fix: {FIX}
+
+Edit this image to show how the scene SHOULD look after applying the fix above:
+- Apply the specific fix described to correct the safety hazard
+- Show the compliant, safe state as if the fix has been implemented
+- Keep the overall scene, setting, and context identical
+- The result should be a realistic visualization of a safe, compliant workplace"""
 
 
-def highlight_violation_with_nano_banana(
+def generate_amended_image(
     frame_base64: str,
     policy_name: str,
     description: str,
     reasoning: str,
+    fix: str,
 ) -> str:
     """
-    Use Gemini Nano Banana to highlight a violation in an image.
+    Use Gemini to generate an amended version of the image with the violation fixed.
 
     Args:
         frame_base64: Base64-encoded JPEG frame
         policy_name: Name of the violated policy
         description: Description of the violation
         reasoning: Reasoning for the violation
+        fix: Specific instruction on how to fix the violation
 
     Returns:
-        Base64-encoded highlighted image
+        Base64-encoded amended image showing the corrected scene
     """
     prompt = (
-        HIGHLIGHT_PROMPT.replace("{POLICY_NAME}", policy_name)
+        AMENDED_IMAGE_PROMPT.replace("{POLICY_NAME}", policy_name)
         .replace("{DESCRIPTION}", description)
         .replace("{REASONING}", reasoning)
+        .replace("{FIX}", fix)
     )
 
     try:
@@ -359,9 +366,9 @@ def highlight_violation_with_nano_banana(
                 ):
                     return part.inline_data.data
 
-        raise Exception("No image returned from Nano Banana")
+        raise Exception("No image returned from Gemini")
     except Exception as e:
-        print(f"Error highlighting violation: {e}")
+        print(f"Error generating amended image: {e}")
         raise
 
 
@@ -429,7 +436,7 @@ def extract_frame_at_timestamp(video_path: str, timestamp_seconds: float) -> str
 
 def upload_image_to_supabase(image_base64: str, filename: str) -> str:
     """
-    Upload an image to Supabase S3 storage.
+    Upload an image to Supabase storage.
 
     Args:
         image_base64: Base64-encoded image data
@@ -438,34 +445,24 @@ def upload_image_to_supabase(image_base64: str, filename: str) -> str:
     Returns:
         Public URL of the uploaded image
     """
-    auth = AWS4Auth(
-        SUPABASE_S3_ACCESS_KEY,
-        SUPABASE_S3_SECRET_KEY,
-        SUPABASE_S3_REGION,
-        "s3",
-    )
-
     # Decode base64 to bytes
     image_bytes = base64.b64decode(image_base64)
 
-    # Upload to Supabase S3
-    upload_url = f"{SUPABASE_S3_ENDPOINT}/{SUPABASE_S3_BUCKET}/{filename}"
+    # Upload to Supabase storage
+    file_path = f"images/{filename}"
 
-    response = requests.put(
-        upload_url,
-        data=image_bytes,
-        headers={"Content-Type": "image/png"},
-        auth=auth,
+    response = supabase.storage.from_(SUPABASE_BUCKET).upload(
+        file_path,
+        image_bytes,
+        file_options={"content-type": "image/png", "upsert": "false"},
     )
 
-    if response.status_code not in (200, 201):
-        raise Exception(
-            f"Failed to upload image: {response.status_code} {response.text}"
-        )
+    # Get public URL
+    public_url_response = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(
+        file_path
+    )
 
-    # Return the public URL
-    public_url = f"https://ksbfdhccpkfycuyngwhv.supabase.co/storage/v1/object/public/{SUPABASE_S3_BUCKET}/{filename}"
-    return public_url
+    return public_url_response
 
 
 # =============================================================================
@@ -986,7 +983,11 @@ async def analyze_video_full(request: VideoAnalysisRequest):
         }
         mime_type = mime_type_map.get(ext, "video/mp4")
 
+        print("sending video to gemini for analysis")
+
         violations = analyze_video_with_gemini(video_base64, mime_type)
+
+        print("violations found", violations)
 
         if not violations:
             conn.close()
@@ -998,29 +999,25 @@ async def analyze_video_full(request: VideoAnalysisRequest):
                 "alerts": [],
             }
 
-        # Step 4: Process each violation
-        created_alerts = []
-
+        # Step 4: Extract ALL frames first (before any DB writes)
+        violation_frames = []
+        print("extracting frames from video")
         for violation in violations:
             try:
-                # Extract frame at violation timestamp
                 timestamp_seconds = parse_timestamp(violation.get("timestamp", "00:00"))
                 frame_base64 = extract_frame_at_timestamp(
                     temp_video_path, timestamp_seconds
                 )
+                violation_frames.append((violation, frame_base64))
+            except Exception as extract_error:
+                print(f"Error extracting frame for violation: {extract_error}")
+                continue
 
-                # Highlight violation with Nano Banana
-                highlighted_image = highlight_violation_with_nano_banana(
-                    frame_base64=frame_base64,
-                    policy_name=violation.get("policy_name", "Unknown"),
-                    description=violation.get("description", ""),
-                    reasoning=violation.get("reasoning", ""),
-                )
+        # Step 5: Process each violation - upload original frame and create alert
+        created_alerts = []
 
-                # Upload highlighted image to Supabase
-                filename = f"violation_{video_id}_{uuid.uuid4().hex}.png"
-                image_url = upload_image_to_supabase(highlighted_image, filename)
-
+        for violation, frame_base64 in violation_frames:
+            try:
                 # Find matching policy in database (strict match on title)
                 policy_name = violation.get("policy_name", "")
                 policy_row = conn.execute(
@@ -1035,7 +1032,13 @@ async def analyze_video_full(request: VideoAnalysisRequest):
                 policy_id = policy_row["id"]
                 policy_level = policy_row["level"]
 
-                # Create alert record with all fields
+                # Upload original frame to Supabase
+                original_filename = f"frame_{video_id}_{uuid.uuid4().hex}.png"
+                original_image_url = upload_image_to_supabase(
+                    frame_base64, original_filename
+                )
+
+                # Create alert record with original frame
                 explanation = violation.get("description", "")
                 severity = violation.get("severity", "")
                 reasoning = violation.get("reasoning", "")
@@ -1050,7 +1053,7 @@ async def analyze_video_full(request: VideoAnalysisRequest):
                     """,
                     (
                         policy_id,
-                        json.dumps([image_url]),
+                        json.dumps([original_image_url]),
                         explanation,
                         video_timestamp,
                         severity,
@@ -1061,7 +1064,36 @@ async def analyze_video_full(request: VideoAnalysisRequest):
                 conn.commit()
                 alert_id = cursor.lastrowid
 
-                # Send email notification if recipient is configured
+                # Step 6: Generate amended image with violation fixed
+                amended_image_url = None
+                fix = violation.get("fix", "")
+                try:
+                    amended_image = generate_amended_image(
+                        frame_base64=frame_base64,
+                        policy_name=policy_name,
+                        description=explanation,
+                        reasoning=reasoning,
+                        fix=fix,
+                    )
+
+                    # Upload amended image to Supabase
+                    amended_filename = f"violation_{video_id}_{uuid.uuid4().hex}.png"
+                    amended_image_url = upload_image_to_supabase(
+                        highlighted_image, amended_filename
+                    )
+
+                    # Update alert with amended image
+                    conn.execute(
+                        "UPDATE alerts SET amended_images = ? WHERE id = ?",
+                        (json.dumps([amended_image_url]), alert_id),
+                    )
+                    conn.commit()
+                except Exception as amended_error:
+                    print(
+                        f"Error generating amended image for alert {alert_id}: {amended_error}"
+                    )
+
+                # Send email notification if recipient is configured (after amended image is ready)
                 if ALERT_EMAIL_RECIPIENT:
                     try:
                         email_body = f"""
@@ -1076,9 +1108,15 @@ Reasoning: {reasoning}
 Video URL: {request.video_url}
                         """.strip()
 
+                        # Use amended image in email if available, otherwise use original
+                        email_image_url = (
+                            amended_image_url
+                            if amended_image_url
+                            else original_image_url
+                        )
                         send_alert_email(
                             recipient=ALERT_EMAIL_RECIPIENT,
-                            image_urls=[image_url],
+                            image_urls=[email_image_url],
                             body=email_body,
                             subject=f"Safety Violation Detected: {policy_name}",
                         )
@@ -1096,7 +1134,8 @@ Video URL: {request.video_url}
                         "video_timestamp": video_timestamp,
                         "description": explanation,
                         "reasoning": reasoning,
-                        "image_url": image_url,
+                        "image_url": original_image_url,
+                        "amended_image_url": amended_image_url,
                     }
                 )
 

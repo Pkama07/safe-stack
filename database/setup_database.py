@@ -93,6 +93,13 @@ MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_alerts_video_id ON alerts(video_id);
     """,
     ),
+    (
+        7,
+        "Add amended_images field to alerts table",
+        """
+        ALTER TABLE alerts ADD COLUMN amended_images TEXT;
+    """,
+    ),
 ]
 
 
