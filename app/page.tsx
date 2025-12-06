@@ -148,7 +148,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen">
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="max-w-[1400px] mx-auto px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -201,9 +201,9 @@ export default function Home() {
         </div>
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left: Video/Camera - 3 cols */}
-          <div className="lg:col-span-3 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+          {/* Left: Video/Camera - 4 cols */}
+          <div className="lg:col-span-4 space-y-4">
             {/* Video Viewport */}
             <div className="device-frame">
               <div className="device-inner">
@@ -260,8 +260,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right: Violations - 2 cols */}
-          <div className="lg:col-span-2">
+          {/* Right: Violations - 3 cols */}
+          <div className="lg:col-span-3">
             <ViolationsList
               violations={violations}
               onViolationClick={handleViolationClick}
