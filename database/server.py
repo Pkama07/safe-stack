@@ -26,6 +26,7 @@ import httpx
 import resend
 from dotenv import load_dotenv
 from fastapi import (
+    BackgroundTasks,
     FastAPI,
     File,
     Form,
@@ -423,6 +424,8 @@ def generate_amended_image(
         .replace("{FIX}", fix)
     )
 
+    print(f"Nano Banana Pro prompt: {prompt[:200]}...")
+
     try:
         response = gemini_client.models.generate_content(
             model="gemini-3-pro-image-preview",
@@ -445,19 +448,33 @@ def generate_amended_image(
             },
         )
 
+        print(f"Nano Banana Pro response received")
+
         # Extract the generated image from response
         if response.candidates:
-            for part in response.candidates[0].content.parts:
-                if (
-                    hasattr(part, "inline_data")
-                    and part.inline_data
-                    and part.inline_data.data
-                ):
-                    return part.inline_data.data
+            print(f"Response has {len(response.candidates)} candidates")
+            candidate = response.candidates[0]
+            if hasattr(candidate, "content") and candidate.content:
+                print(f"Candidate has {len(candidate.content.parts)} parts")
+                for i, part in enumerate(candidate.content.parts):
+                    print(f"Part {i}: type={type(part)}, has_inline_data={hasattr(part, 'inline_data')}")
+                    if hasattr(part, "inline_data") and part.inline_data:
+                        print(f"  inline_data.mime_type: {getattr(part.inline_data, 'mime_type', 'N/A')}")
+                        data = part.inline_data.data
+                        if data:
+                            # Data might be bytes or string
+                            if isinstance(data, bytes):
+                                data = base64.b64encode(data).decode("utf-8")
+                            print(f"  data length: {len(data)} chars")
+                            return data
+        else:
+            print("No candidates in response")
 
-        raise Exception("No image returned from Gemini")
+        raise Exception("No image returned from Nano Banana Pro")
     except Exception as e:
         print(f"Error generating amended image: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
@@ -552,6 +569,88 @@ def upload_image_to_supabase(image_base64: str, filename: str) -> str:
     )
 
     return public_url_response
+
+
+# =============================================================================
+# Background Task: Generate Amended Image
+# =============================================================================
+
+
+async def generate_and_store_amended_image(
+    alert_id: int,
+    image_url: str,
+    policy_name: str,
+    description: str,
+    reasoning: str,
+):
+    """
+    Background task to generate amended image using Nano Banana Pro and store it.
+
+    This is triggered when an alert is fetched and has no amended_images.
+    """
+    try:
+        print(f"Starting amended image generation for alert {alert_id}")
+        print(f"  - Image URL: {image_url}")
+        print(f"  - Policy: {policy_name}")
+
+        # 1. Download original image from URL
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(image_url)
+            if response.status_code != 200:
+                print(f"Failed to download image for alert {alert_id}: {response.status_code}")
+                return
+
+            image_bytes = response.content
+            if len(image_bytes) < 100:
+                print(f"Downloaded image is too small ({len(image_bytes)} bytes), likely invalid")
+                return
+
+            image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+            print(f"Downloaded original image: {len(image_bytes)} bytes")
+
+        # 2. Generate fix instruction from description
+        fix = f"Correct the {policy_name} violation by addressing: {description}"
+
+        # 3. Call Nano Banana Pro to generate amended image
+        print(f"Calling Nano Banana Pro for alert {alert_id}...")
+        amended_base64 = await asyncio.to_thread(
+            generate_amended_image,
+            image_base64,
+            policy_name,
+            description,
+            reasoning,
+            fix,
+        )
+
+        # Validate the generated image
+        if not amended_base64 or len(amended_base64) < 100:
+            print(f"Generated image data is invalid or empty for alert {alert_id}")
+            return
+
+        print(f"Generated amended image: {len(amended_base64)} chars of base64")
+
+        # 4. Upload amended image to Supabase
+        filename = f"amended_{alert_id}_{uuid.uuid4().hex}.png"
+        amended_url = await asyncio.to_thread(
+            upload_image_to_supabase, amended_base64, filename
+        )
+        print(f"Uploaded amended image for alert {alert_id}: {amended_url}")
+
+        # 5. Update alert record with amended_images
+        conn = get_db()
+        conn.execute(
+            "UPDATE alerts SET amended_images = ? WHERE id = ?",
+            (json.dumps([amended_url]), alert_id),
+        )
+        conn.commit()
+        conn.close()
+
+        print(f"Successfully generated and stored amended image for alert {alert_id}")
+
+    except Exception as e:
+        import traceback
+        print(f"Error generating amended image for alert {alert_id}: {e}")
+        traceback.print_exc()
 
 
 # =============================================================================
@@ -1005,7 +1104,7 @@ def list_alerts(
     rows = conn.execute(query, params).fetchall()
     conn.close()
 
-    # Parse image_urls JSON for each row
+    # Parse JSON fields for each row
     result = []
     for row in rows:
         d = dict(row)
@@ -1013,14 +1112,18 @@ def list_alerts(
             d["image_urls"] = json.loads(d["image_urls"])
         else:
             d["image_urls"] = []
+        if d.get("amended_images"):
+            d["amended_images"] = json.loads(d["amended_images"])
+        else:
+            d["amended_images"] = []
         result.append(d)
 
     return result
 
 
 @app.get("/alerts/{alert_id}")
-def get_alert(alert_id: int):
-    """Get an alert by ID."""
+async def get_alert(alert_id: int, background_tasks: BackgroundTasks):
+    """Get an alert by ID. Triggers amended image generation if not already generated."""
     conn = get_db()
     row = conn.execute(
         """
@@ -1037,10 +1140,30 @@ def get_alert(alert_id: int):
         raise HTTPException(status_code=404, detail="Alert not found")
 
     d = dict(row)
+
+    # Parse image_urls JSON
     if d.get("image_urls"):
         d["image_urls"] = json.loads(d["image_urls"])
     else:
         d["image_urls"] = []
+
+    # Parse amended_images JSON
+    if d.get("amended_images"):
+        d["amended_images"] = json.loads(d["amended_images"])
+    else:
+        d["amended_images"] = []
+
+    # Trigger background generation if amended_images is empty and we have original images
+    if not d["amended_images"] and d["image_urls"]:
+        background_tasks.add_task(
+            generate_and_store_amended_image,
+            alert_id=alert_id,
+            image_url=d["image_urls"][0],
+            policy_name=d.get("policy_title", ""),
+            description=d.get("explanation", ""),
+            reasoning=d.get("reasoning", ""),
+        )
+
     return d
 
 
