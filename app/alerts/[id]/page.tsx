@@ -48,6 +48,7 @@ export default function AlertDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false)
+  const [isPollingAmendedImages, setIsPollingAmendedImages] = useState(false)
 
   useEffect(() => {
     // Try cached alert first for instant render
@@ -92,6 +93,60 @@ export default function AlertDetailPage() {
 
     fetchAlert()
   }, [id])
+
+  // Poll for amended_images if not available
+  useEffect(() => {
+    // Check if we need to poll (alert loaded but no amended_images)
+    const hasAmendedImages = alert?.amended_images && Array.isArray(alert.amended_images) && alert.amended_images.length > 0
+    
+    if (!alert || hasAmendedImages) {
+      setIsPollingAmendedImages(false)
+      return
+    }
+
+    // Start polling
+    setIsPollingAmendedImages(true)
+    
+    const POLL_INTERVAL = 3000 // 3 seconds
+    const MAX_POLL_DURATION = 120000 // 2 minutes timeout
+    const startTime = Date.now()
+
+    const pollForAmendedImages = async () => {
+      try {
+        const response = await fetch(`/api/alerts/${id}`, { cache: 'no-store' })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.amended_images && Array.isArray(data.amended_images) && data.amended_images.length > 0) {
+            setAlert(data)
+            sessionStorage.setItem(`alert-${id}`, JSON.stringify(data))
+            setIsPollingAmendedImages(false)
+            return true // Stop polling
+          }
+        }
+      } catch (err) {
+        console.error('Error polling for amended images:', err)
+      }
+      return false // Continue polling
+    }
+
+    const intervalId = setInterval(async () => {
+      // Check timeout
+      if (Date.now() - startTime > MAX_POLL_DURATION) {
+        setIsPollingAmendedImages(false)
+        clearInterval(intervalId)
+        return
+      }
+
+      const success = await pollForAmendedImages()
+      if (success) {
+        clearInterval(intervalId)
+      }
+    }, POLL_INTERVAL)
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [alert, id])
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this alert?')) return
@@ -355,6 +410,29 @@ export default function AlertDetailPage() {
           )}
 
           {/* Amended Images (AI-Generated Fix) */}
+          {isPollingAmendedImages && (
+            <div className="bg-[#0f1419] rounded-lg border border-white/10 p-6">
+              <h2 className="flex items-center gap-3 text-white font-semibold mb-4">
+                <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                AI-Generated Fix
+              </h2>
+
+              <div className="pl-11">
+                <div className="flex items-center gap-3 text-stone-400">
+                  <div className="relative">
+                    <div className="w-5 h-5 border-2 border-white/10 rounded-full" />
+                    <div className="absolute inset-0 w-5 h-5 border-2 border-green-500 rounded-full border-t-transparent animate-spin" />
+                  </div>
+                  <span>Generating image...</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {alert.amended_images && Array.isArray(alert.amended_images) && alert.amended_images.length > 0 && (
             <div className="bg-[#0f1419] rounded-lg border border-white/10 p-6">
               <h2 className="flex items-center gap-3 text-white font-semibold mb-4">
