@@ -37,6 +37,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
+from google.genai import types
 from pydantic import BaseModel, model_validator
 from supabase import create_client, Client
 
@@ -405,7 +406,7 @@ def generate_amended_image(
     fix: str,
 ) -> str:
     """
-    Use Gemini to generate an amended version of the image with the violation fixed.
+    Use Gemini Nano Banana Pro to generate an amended version of the image with the violation fixed.
 
     Args:
         frame_base64: Base64-encoded JPEG frame
@@ -424,58 +425,27 @@ def generate_amended_image(
         .replace("{FIX}", fix)
     )
 
-    print(f"Nano Banana Pro prompt: {prompt[:200]}...")
+    response = gemini_client.models.generate_content(
+        model="gemini-3-pro-image-preview",
+        contents=[
+            types.Part.from_bytes(data=base64.b64decode(frame_base64), mime_type="image/jpeg"),
+            prompt,
+        ],
+        config=types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+        ),
+    )
 
-    try:
-        response = gemini_client.models.generate_content(
-            model="gemini-3-pro-image-preview",
-            contents=[
-                {
-                    "role": "user",
-                    "parts": [
-                        {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": frame_base64,
-                            }
-                        },
-                        {"text": prompt},
-                    ],
-                }
-            ],
-            config={
-                "response_modalities": ["IMAGE"],
-            },
-        )
+    # Extract the generated image from response
+    for part in response.parts:
+        if part.inline_data is not None:
+            image_data = part.inline_data.data
+            # Return as base64 string
+            if isinstance(image_data, bytes):
+                return base64.b64encode(image_data).decode("utf-8")
+            return image_data
 
-        print(f"Nano Banana Pro response received")
-
-        # Extract the generated image from response
-        if response.candidates:
-            print(f"Response has {len(response.candidates)} candidates")
-            candidate = response.candidates[0]
-            if hasattr(candidate, "content") and candidate.content:
-                print(f"Candidate has {len(candidate.content.parts)} parts")
-                for i, part in enumerate(candidate.content.parts):
-                    print(f"Part {i}: type={type(part)}, has_inline_data={hasattr(part, 'inline_data')}")
-                    if hasattr(part, "inline_data") and part.inline_data:
-                        print(f"  inline_data.mime_type: {getattr(part.inline_data, 'mime_type', 'N/A')}")
-                        data = part.inline_data.data
-                        if data:
-                            # Data might be bytes or string
-                            if isinstance(data, bytes):
-                                data = base64.b64encode(data).decode("utf-8")
-                            print(f"  data length: {len(data)} chars")
-                            return data
-        else:
-            print("No candidates in response")
-
-        raise Exception("No image returned from Nano Banana Pro")
-    except Exception as e:
-        print(f"Error generating amended image: {e}")
-        import traceback
-        traceback.print_exc()
-        raise
+    raise Exception("No image returned from Nano Banana Pro")
 
 
 # =============================================================================
@@ -585,34 +555,21 @@ async def generate_and_store_amended_image(
 ):
     """
     Background task to generate amended image using Nano Banana Pro and store it.
-
-    This is triggered when an alert is fetched and has no amended_images.
+    Triggered when an alert is fetched and has no amended_images.
     """
     try:
-        print(f"Starting amended image generation for alert {alert_id}")
-        print(f"  - Image URL: {image_url}")
-        print(f"  - Policy: {policy_name}")
-
-        # 1. Download original image from URL
+        # Download original image
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(image_url)
-            if response.status_code != 200:
-                print(f"Failed to download image for alert {alert_id}: {response.status_code}")
+            resp = await client.get(image_url)
+            if resp.status_code != 200:
+                print(f"Failed to download image for alert {alert_id}")
                 return
+            image_base64 = base64.b64encode(resp.content).decode("utf-8")
 
-            image_bytes = response.content
-            if len(image_bytes) < 100:
-                print(f"Downloaded image is too small ({len(image_bytes)} bytes), likely invalid")
-                return
-
-            image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-            print(f"Downloaded original image: {len(image_bytes)} bytes")
-
-        # 2. Generate fix instruction from description
+        # Generate fix instruction
         fix = f"Correct the {policy_name} violation by addressing: {description}"
 
-        # 3. Call Nano Banana Pro to generate amended image
-        print(f"Calling Nano Banana Pro for alert {alert_id}...")
+        # Call Nano Banana Pro
         amended_base64 = await asyncio.to_thread(
             generate_amended_image,
             image_base64,
@@ -622,21 +579,13 @@ async def generate_and_store_amended_image(
             fix,
         )
 
-        # Validate the generated image
-        if not amended_base64 or len(amended_base64) < 100:
-            print(f"Generated image data is invalid or empty for alert {alert_id}")
-            return
-
-        print(f"Generated amended image: {len(amended_base64)} chars of base64")
-
-        # 4. Upload amended image to Supabase
+        # Upload to Supabase
         filename = f"amended_{alert_id}_{uuid.uuid4().hex}.png"
         amended_url = await asyncio.to_thread(
             upload_image_to_supabase, amended_base64, filename
         )
-        print(f"Uploaded amended image for alert {alert_id}: {amended_url}")
 
-        # 5. Update alert record with amended_images
+        # Update database
         conn = get_db()
         conn.execute(
             "UPDATE alerts SET amended_images = ? WHERE id = ?",
@@ -645,12 +594,10 @@ async def generate_and_store_amended_image(
         conn.commit()
         conn.close()
 
-        print(f"Successfully generated and stored amended image for alert {alert_id}")
+        print(f"Generated amended image for alert {alert_id}")
 
     except Exception as e:
-        import traceback
         print(f"Error generating amended image for alert {alert_id}: {e}")
-        traceback.print_exc()
 
 
 # =============================================================================
